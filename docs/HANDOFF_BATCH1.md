@@ -1,13 +1,13 @@
 # HANDOFF — BATCH-1 (PHASE-P0 / data_model)
 
 ## Freeze / Fingerprints
-- AI_SPECDIGEST sha256: `NA`
-- ARCH_DIGEST sha256: `NA`
-- MASTER_PLAN sha256: `NA`
+- AI_SPECDIGEST sha256: `77b334b8533592dbe7c74adb7d5e5e36a13266c23d95cdc72705c84a319e03cf`  (path: E:\01Small_Tools\AI_Content_Generation_Workstation\ai-content-workstation\docs\01_AI_SPECDIGEST.yaml)
+- ARCH_DIGEST sha256: `adfb12f1a7ebc21cf15d5052213532bd3a484ebd19e2ad4e3b782eac11f216ca`  (path: E:\01Small_Tools\AI_Content_Generation_Workstation\ai-content-workstation\docs\02_ARCH_DIGEST.yaml)
+- MASTER_PLAN sha256: `d0da8fd4f392a77639da02347c96d32309366a28deb28fc88f8597f9b91e054a`  (path: E:\01Small_Tools\AI_Content_Generation_Workstation\ai-content-workstation\docs\03_MASTER_PLAN_frozen.yaml)
 
 ## Git
 - Branch: `dev/batch1-data-model`
-- HEAD: `b39e511bbc8b70e43694136686ccdcf8db250cb2`
+- HEAD: `8ff6729107f919c71f966b8194d861b04f92c8e1`
 
 ## What was delivered
 ### STEP-020/030 — DB/Storage skeleton
