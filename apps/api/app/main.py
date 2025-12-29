@@ -7,6 +7,53 @@ STORAGE_ROOT = os.getenv("STORAGE_ROOT", "./data/storage")
 
 app = FastAPI(title="AI Content Workstation API", version=APP_VERSION)
 
+
+# --- BATCH-1 STEP-030: health db/storage enrich (do not remove) ---
+# Purpose: keep /health top-level keys stable while ensuring db/storage details exist.
+try:
+    import json
+    from starlette.responses import Response
+    from app.core.db import db_health
+    from app.core.storage import storage_health
+
+    @app.middleware("http")
+    async def _batch1_health_enricher(request, call_next):
+        response = await call_next(request)
+        if request.url.path != "/health":
+            return response
+        try:
+            ct = response.headers.get("content-type", "")
+            if "application/json" not in ct:
+                return response
+            body = getattr(response, "body", None)
+            if not body:
+                return response
+
+            data = json.loads(body.decode("utf-8"))
+            if not isinstance(data, dict):
+                return response
+
+            data["db"] = db_health()
+            data["storage"] = storage_health()
+
+            new_body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            headers = dict(response.headers)
+            # avoid stale content-length
+            headers.pop("content-length", None)
+
+            return Response(
+                content=new_body,
+                media_type="application/json",
+                status_code=response.status_code,
+                headers=headers,
+            )
+        except Exception:
+            return response
+except Exception:
+    # do not break boot; gate_db_storage will surface missing deps.
+    pass
+# --- end BATCH-1 STEP-030 ---
+
 # === BATCH-0 OBSERVABILITY FOUNDATIONS (DO NOT EDIT WITHOUT CR) ===
 # Contract locks:
 # - Ports: web=2000, api=7000

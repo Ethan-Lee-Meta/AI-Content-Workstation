@@ -92,6 +92,20 @@ fi
 if [[ "$MODE" == "full" ]]; then
   ok "running required gates (full)"
   bash scripts/gate_api_smoke.sh
+
+# BATCH-1: db/storage gate
+if [ -f scripts/gate_db_storage.sh ]; then
+  bash scripts/gate_db_storage.sh
+
+# BATCH-1: models gate
+if [ -f scripts/gate_models.sh ]; then
+  bash scripts/gate_models.sh
+else
+  echo "[warn] missing scripts/gate_models.sh"
+fi
+else
+  echo "[warn] missing scripts/gate_db_storage.sh"
+fi
   ok "full done"
   exit 0
 fi
