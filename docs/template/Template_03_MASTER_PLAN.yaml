@@ -1,0 +1,511 @@
+MASTER_PLAN:
+  meta:
+    artifact_id: "plan-<project>-<yyyymmdd>"
+    version: "1.0.0"
+    status: "draft"            # draft|frozen
+    language: "zh-CN"
+    created_at: "<ISO8601>"
+    owners:
+      primary: "DevPlanner"
+      approver: "User"
+    inputs_fingerprints:
+      AI_SPECDIGEST:
+        version: "<spec_version>"
+        status: "<draft|frozen>"
+        sha256: "<spec_sha256>"
+      ARCH_DIGEST:
+        version: "<arch_version>"
+        status: "<draft|frozen>"
+        sha256: "<arch_sha256>"
+      ARCH_CONTRACT_SUMMARY:
+        present: true
+        sha256: "<optional>"
+    fingerprints:
+      master_plan_sha256: "<to_be_computed>"
+    change_policy:
+      frozen_immutable: true
+      change_level: "CR-PLAN"   # 可自定义：计划变更级别（不改变spec/arch）
+      owner_window: "ChangeCoordinator"
+      change_flow:
+        - "需要变更 steps/依赖/批次 -> 提交 PLAN_CHANGE_REQUEST.yaml（草案）"
+        - "Window-5 汇总传播 -> 批准后 bump version"
+        - "更新 master_plan_sha256 并通知下游（Dev/Validator）"
+
+  planning_principles:
+    ordering_heuristics:        # 强制排序启发式（Window-3硬约束）
+      - "O1: 基础门禁 / 可观测性 / 错误信封 / 请求ID / CI环境（最先）"
+      - "O2: 数据模型(DB) 与 存储层骨架（早于业务接口）"
+      - "O3: API 路由 与 DTO 契约（早于 UI 实现）"
+      - "O4: 最小可用垂直切片（One Happy Path）（尽早跑通）"
+      - "O5: 扩展功能 / 边界情况 / 性能优化（后置）"
+    step_granularity_rules:
+      - "每个 step 必须：可独立合并、可验收、可回滚"
+      - "每个 step 必须：Goal / Touched Areas / Entry-Exit / Verification / Rollback"
+      - "Verification 必须是可执行命令 + 预期结果（不接受‘文件存在检查’作为唯一验证）"
+      - "建议：touched files <= 10（优先）；超出必须写明原因与拆分方案"
+    conflict_domains:           # 用于并行化与合流冲突隔离
+      - "infra_runtime"
+      - "observability_contract"
+      - "data_model"
+      - "api_contract"
+      - "ui_routes"
+      - "ui_components"
+      - "integration_tests"
+
+  global_constraints:
+    forbidden:
+      - "计划中禁止包含任何代码实现/patch命令（cat > file / apply patch 等）"
+      - "不得修改已冻结的 AI_SPECDIGEST / ARCH_DIGEST（如需变更走 CR-L1/CR-L2）"
+    required_gates_from_arch:
+      ports_lock:
+        web_dev_server: 2000
+        api_server: 7000
+      request_tracking:
+        header_in: "X-Request-Id"
+        header_out: "X-Request-Id"
+      health_contract:
+        path: "/health"
+        response_keys_required: ["status", "version", "db", "storage", "last_error_summary"]
+      error_envelope_required: true
+      pagination_required: true
+
+  traceability_matrix:
+    # 规划层最小映射：把 “Spec承诺点” 映射到 “哪个Step验证”
+    acceptance_to_steps:
+      - acceptance_id: "AC-001"
+        step_ids: ["STEP-040-ui-library", "STEP-060-e2e-happy-path"]
+      - acceptance_id: "AC-002"
+        step_ids: ["STEP-030-api-assets-read", "STEP-060-e2e-happy-path"]
+      - acceptance_id: "AC-003"
+        step_ids: ["STEP-020-api-core-contracts", "STEP-050-ui-generate", "STEP-060-e2e-happy-path"]
+    nfr_to_steps:
+      - nfr_id: "NFR-OBS-002"
+        step_ids: ["STEP-010-observability-foundation"]
+      - nfr_id: "NFR-UX-001"
+        step_ids: ["STEP-040-ui-library", "STEP-050-ui-generate"]
+    decisions_to_steps:
+      - decision_id: "D-002"
+        step_ids: ["STEP-025-review-contract"]
+
+  steps:
+    # =========================================================
+    # Batch 0 (O1): 基础门禁 / 可观测性 / 错误信封 / 请求ID / CI
+    # =========================================================
+    - id: "STEP-000-context-sync"
+      title: "Context Sync & Repo Baseline Verification"
+      conflict_domain: "infra_runtime"
+      batch_hint: "BATCH-0"
+      goal: "在不改动需求与架构锁的前提下，建立可复现的本地/CI基线与门禁执行路径"
+      touched_areas:
+        max_files_preferred: 0
+        expected_paths: ["docs/**", "scripts/**", "tmp/**"]
+        notes: "原则上不改生产代码；若必须改仅限 scripts/docs，并记录原因"
+      entry_criteria:
+        - "已提供 AI_SPECDIGEST 与 ARCH_DIGEST 指纹（version/status/sha256）"
+        - "ports_lock /health 契约 / request-id / error envelope / pagination 已在 ARCH_DIGEST 锁定"
+      exit_criteria:
+        - "可在本地执行计划指定的 gates 命令并得到可读输出"
+        - "确认 repo_commit 与依赖安装流程在目标环境可执行"
+      verification:
+        commands:
+          - "<cmd> git status -sb"
+          - "<cmd> bash scripts/gate_all.sh"
+        expected:
+          - "gates 全通过或输出明确缺口（缺口必须转交到后续步骤修复）"
+      rollback:
+        strategy: "no_code_change_expected"
+        commands: []
+      depends_on: []
+      spec_refs:
+        scope_ids: []
+        acceptance_ids: []
+        nfr_ids: ["NFR-OBS-001"]
+      arch_refs:
+        locks:
+          - "runtime_and_env.commands.gates"
+          - "ports_lock"
+          - "observability.health_check"
+
+    - id: "STEP-010-observability-foundation"
+      title: "Observability Contract Foundation (health/logging/request-id)"
+      conflict_domain: "observability_contract"
+      batch_hint: "BATCH-0"
+      goal: "实现并锁定可观测性契约的最小可运行闭环（/health keys、请求追踪、结构化日志）"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/api/**", "scripts/**", "docs/**"]
+      entry_criteria:
+        - "STEP-000 已完成并能运行 gates"
+      exit_criteria:
+        - "/health 响应 key 与 ARCH_DIGEST 完全一致"
+        - "X-Request-Id 入/出站规则满足 arch 锁"
+        - "日志包含 required_fields，并与 request_id 映射一致"
+      verification:
+        commands:
+          - "<cmd> curl -i http://localhost:7000/health"
+          - "<cmd> curl -i http://localhost:7000/openapi.json"
+          - "<cmd> bash scripts/gate_api_smoke.sh"
+        expected:
+          - "health keys: status/version/db/storage/last_error_summary"
+          - "response header contains X-Request-Id"
+          - "openapi reachable"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-000-context-sync"]
+      spec_refs:
+        scope_ids: []
+        acceptance_ids: []
+        nfr_ids: ["NFR-OBS-002", "NFR-OBS-003"]
+      arch_refs:
+        locks:
+          - "api_contract_addendum.request_tracking"
+          - "api_contract_addendum.required_endpoints.health"
+          - "observability.logging"
+
+    - id: "STEP-020-api-core-contracts"
+      title: "API Contract Baseline (error envelope + pagination + OpenAPI discipline)"
+      conflict_domain: "api_contract"
+      batch_hint: "BATCH-0"
+      goal: "落地全局 API 契约：错误信封与分页规范，并确保 OpenAPI 可用于前后端对齐"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/api/**", "docs/**"]
+      entry_criteria:
+        - "STEP-010 已完成（/health/request-id/logging稳定）"
+      exit_criteria:
+        - "全局错误信封与分页响应 shape 可复用且一致"
+        - "OpenAPI 文档反映契约（路径存在/响应结构可见）"
+      verification:
+        commands:
+          - "<cmd> curl -s http://localhost:7000/openapi.json | head"
+          - "<cmd> bash scripts/gate_api_smoke.sh"
+        expected:
+          - "gate 检查 error envelope / pagination / openapi 通过（按你仓库门禁定义）"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-010-observability-foundation"]
+      spec_refs:
+        scope_ids: []
+        acceptance_ids: ["AC-003"]
+        nfr_ids: []
+      arch_refs:
+        locks:
+          - "api_contract_addendum.error_envelope"
+          - "api_contract_addendum.pagination"
+          - "api_contract_addendum.required_endpoints.openapi"
+
+    # =========================================================
+    # Batch 1 (O2): 数据模型与存储骨架（早于业务接口）
+    # =========================================================
+    - id: "STEP-030-data-model-skeleton"
+      title: "Data Model & Storage Skeleton (entities + evidence chain invariants)"
+      conflict_domain: "data_model"
+      batch_hint: "BATCH-1"
+      goal: "建立核心实体边界与存储抽象骨架，满足证据链不可静默覆盖的约束（概念落实到结构）"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/api/**", "docs/**"]
+      entry_criteria:
+        - "STEP-020 完成（API契约已稳定）"
+      exit_criteria:
+        - "实体边界可表达 Project/Series/Asset/Prompt/Run/Review/Link（按 arch/spec）"
+        - "存储抽象可支持资产落盘引用与导出准备（若 scope 包含导出）"
+      verification:
+        commands:
+          - "<cmd> pytest -q"
+          - "<cmd> bash scripts/gate_api_smoke.sh"
+        expected:
+          - "测试通过；/health 仍满足 key 锁；OpenAPI 可达"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-020-api-core-contracts"]
+      spec_refs:
+        scope_ids: ["S1", "S2", "S3"]
+        acceptance_ids: ["AC-001", "AC-002", "AC-003"]
+        nfr_ids: ["NFR-REL-002"]
+      arch_refs:
+        locks:
+          - "data_model_lock.entity_boundaries"
+          - "data_model_lock.immutability_policy"
+          - "data_model_lock.storage_contract"
+
+    # =========================================================
+    # Batch 2 (O3): API 路由与 DTO 契约（早于 UI）
+    # =========================================================
+    - id: "STEP-035-api-assets-read"
+      title: "Assets Read API Slice (list/detail + traceability view)"
+      conflict_domain: "api_contract"
+      batch_hint: "BATCH-2"
+      goal: "提供资产列表与详情的最小读取闭环，确保详情包含追溯信息（概念字段齐全）"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/api/**"]
+      entry_criteria:
+        - "STEP-030 完成（实体/存储骨架可用）"
+      exit_criteria:
+        - "资产列表/详情可用，并遵循分页/错误信封/request-id"
+        - "资产详情可提供 Prompt/Run/Review/Project/Series 关联视图（如适用）"
+      verification:
+        commands:
+          - "<cmd> curl -i http://localhost:7000/<assets_list_endpoint>"
+          - "<cmd> curl -i http://localhost:7000/<asset_detail_endpoint>"
+          - "<cmd> bash scripts/gate_api_smoke.sh"
+        expected:
+          - "响应含 X-Request-Id；分页/错误信封规范一致；必要字段（概念）存在"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-030-data-model-skeleton"]
+      spec_refs:
+        scope_ids: ["S1"]
+        acceptance_ids: ["AC-001", "AC-002"]
+        nfr_ids: []
+      arch_refs:
+        locks:
+          - "api_contract_addendum.pagination"
+          - "api_contract_addendum.error_envelope"
+
+    - id: "STEP-038-api-generate-run"
+      title: "Generate Run API Slice (create run + status + result registration)"
+      conflict_domain: "api_contract"
+      batch_hint: "BATCH-2"
+      goal: "提供生成任务的创建/状态查询/结果登记最小闭环（不锁 provider 实现细节）"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/api/**"]
+      entry_criteria:
+        - "STEP-030 完成"
+      exit_criteria:
+        - "可创建 run，查询状态，成功后可登记资产并建立追溯关系"
+        - "失败可记录原因并可重试（需求层）"
+      verification:
+        commands:
+          - "<cmd> curl -i -X POST http://localhost:7000/<runs_create_endpoint> -d '<json>'"
+          - "<cmd> curl -i http://localhost:7000/<runs_status_endpoint>"
+        expected:
+          - "符合错误信封/请求追踪；状态机可观察"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-030-data-model-skeleton"]
+      spec_refs:
+        scope_ids: ["S2", "S3"]
+        acceptance_ids: ["AC-003"]
+        nfr_ids: ["NFR-REL-001"]
+      arch_refs:
+        locks:
+          - "provider_integration"
+          - "api_contract_addendum.request_tracking"
+          - "observability.logging"
+
+    - id: "STEP-025-review-contract"
+      title: "Review Contract Slice (auto-pass + sampling baseline)"
+      conflict_domain: "data_model"
+      batch_hint: "BATCH-2"
+      goal: "落实审核对象与最小策略占位：支持自动通过+抽检（默认决策D-002）并可记录未通过原因"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/api/**", "docs/**"]
+      entry_criteria:
+        - "STEP-030 完成"
+      exit_criteria:
+        - "Review 可记录结论与原因；与 Asset/Run 关联可追溯"
+        - "策略可配置（至少概念开关）"
+      verification:
+        commands:
+          - "<cmd> pytest -q"
+        expected:
+          - "相关测试通过；数据关系可验证"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-030-data-model-skeleton"]
+      spec_refs:
+        scope_ids: ["S3"]
+        acceptance_ids: []
+        nfr_ids: []
+      arch_refs:
+        locks:
+          - "data_model_lock.entity_boundaries"
+
+    # =========================================================
+    # Batch 3 (O3->O4): UI 路由/骨架（在 API 基线稳定后）
+    # =========================================================
+    - id: "STEP-040-ui-library"
+      title: "UI Library Skeleton (list + filters + bulk action bar)"
+      conflict_domain: "ui_routes"
+      batch_hint: "BATCH-3"
+      goal: "实现资产库页面骨架与浅层交互约束（≤3层）并对接读取 API"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/web/**"]
+      entry_criteria:
+        - "STEP-035 完成（可用的资产读取 API）"
+      exit_criteria:
+        - "能展示图片/视频列表并进入详情入口"
+        - "BulkActionBar 存在且可触发至少1个批量动作（占位可）"
+      verification:
+        commands:
+          - "<cmd> cd apps/web && npm run dev -- -p 2000"
+          - "<cmd> 打开 http://localhost:2000/library 并手工走查"
+        expected:
+          - "页面可访问；列表可渲染；关键区块存在"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-035-api-assets-read"]
+      spec_refs:
+        scope_ids: ["S1"]
+        acceptance_ids: ["AC-001"]
+        nfr_ids: ["NFR-UX-001", "NFR-UX-002"]
+      arch_refs:
+        locks:
+          - "ui_contract.routes"
+          - "ui_contract.page_skeletons.library"
+
+    - id: "STEP-045-ui-asset-detail"
+      title: "UI Asset Detail Skeleton (preview + metadata + traceability)"
+      conflict_domain: "ui_routes"
+      batch_hint: "BATCH-3"
+      goal: "实现资产详情页骨架并展示追溯信息（Prompt/Run/Review/Project/Series）"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/web/**"]
+      entry_criteria:
+        - "STEP-035 完成"
+      exit_criteria:
+        - "资产详情页可打开并展示预览/元数据/追溯/动作区块"
+      verification:
+        commands:
+          - "<cmd> 打开 http://localhost:2000/assets/<asset_id> 并手工走查"
+        expected:
+          - "区块存在；追溯信息可见（字段名以实现为准，概念需齐全）"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-040-ui-library"]
+      spec_refs:
+        scope_ids: ["S1", "S3"]
+        acceptance_ids: ["AC-002"]
+        nfr_ids: ["NFR-UX-001"]
+      arch_refs:
+        locks:
+          - "ui_contract.page_skeletons.asset_detail"
+
+    - id: "STEP-050-ui-generate"
+      title: "UI Generate Skeleton (input + run status + results)"
+      conflict_domain: "ui_routes"
+      batch_hint: "BATCH-3"
+      goal: "实现生成页骨架并对接 run 创建/状态 API，满足最小闭环"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["apps/web/**"]
+      entry_criteria:
+        - "STEP-038 完成（run API 可用）"
+      exit_criteria:
+        - "可发起生成（run创建）并看到状态/结果面板（占位可）"
+      verification:
+        commands:
+          - "<cmd> 打开 http://localhost:2000/generate 并手工走查一次提交"
+        expected:
+          - "提交可触发API；状态可更新；错误可见且有request-id"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on: ["STEP-038-api-generate-run"]
+      spec_refs:
+        scope_ids: ["S2"]
+        acceptance_ids: ["AC-003"]
+        nfr_ids: ["NFR-UX-001"]
+      arch_refs:
+        locks:
+          - "ui_contract.page_skeletons.generate"
+
+    # =========================================================
+    # Batch 4 (O4->O5): 端到端最小闭环 + 集成验证点
+    # =========================================================
+    - id: "STEP-060-e2e-happy-path"
+      title: "End-to-End Happy Path Gate (generate -> review -> library -> detail)"
+      conflict_domain: "integration_tests"
+      batch_hint: "BATCH-4"
+      goal: "跑通并固化最小闭环端到端验证：生成 -> 审核 -> 入库 -> 列表展示 -> 详情追溯"
+      touched_areas:
+        max_files_preferred: 10
+        expected_paths: ["scripts/**", "docs/**", "apps/api/**", "apps/web/**"]
+      entry_criteria:
+        - "STEP-010/020/030/035/038/040/045/050 已完成"
+      exit_criteria:
+        - "端到端验证命令可运行并输出稳定结果"
+        - "关键门禁（health/request-id/openapi/api_smoke）持续通过"
+      verification:
+        commands:
+          - "<cmd> bash scripts/gate_all.sh"
+          - "<cmd> <optional: bash scripts/e2e_happy_path.sh>"
+        expected:
+          - "gates 全绿；e2e 结果可复现"
+      rollback:
+        strategy: "git_revert_or_reset"
+        commands:
+          - "<cmd> git revert <merge_commit_or_commit_sha>"
+      depends_on:
+        - "STEP-010-observability-foundation"
+        - "STEP-020-api-core-contracts"
+        - "STEP-030-data-model-skeleton"
+        - "STEP-035-api-assets-read"
+        - "STEP-038-api-generate-run"
+        - "STEP-040-ui-library"
+        - "STEP-045-ui-asset-detail"
+        - "STEP-050-ui-generate"
+      spec_refs:
+        scope_ids: ["S1", "S2", "S3"]
+        acceptance_ids: ["AC-001", "AC-002", "AC-003"]
+        nfr_ids: ["NFR-OBS-002", "NFR-UX-001"]
+      arch_refs:
+        locks:
+          - "integration_strategy.gates_and_ci"
+          - "observability.health_check"
+
+  batching_guidance:
+    # 仅作为计划内提示；真正批次清单可在 DEVELOPMENT_BATCHES.md 中展开
+    batches:
+      - id: "BATCH-0"
+        name: "Foundations & Gates"
+        parallelizable: false
+        includes_steps: ["STEP-000-context-sync", "STEP-010-observability-foundation", "STEP-020-api-core-contracts"]
+      - id: "BATCH-1"
+        name: "Data/Storage Skeleton"
+        parallelizable: false
+        includes_steps: ["STEP-030-data-model-skeleton"]
+      - id: "BATCH-2"
+        name: "API Slices"
+        parallelizable: true
+        includes_steps: ["STEP-035-api-assets-read", "STEP-038-api-generate-run", "STEP-025-review-contract"]
+      - id: "BATCH-3"
+        name: "UI Slices"
+        parallelizable: true
+        includes_steps: ["STEP-040-ui-library", "STEP-045-ui-asset-detail", "STEP-050-ui-generate"]
+      - id: "BATCH-4"
+        name: "Integration & E2E"
+        parallelizable: false
+        includes_steps: ["STEP-060-e2e-happy-path"]
+
+  planner_self_check:
+    checklist:
+      - "所有 steps 均包含：Goal/Touched/Entry-Exit/Verification/Rollback"
+      - "严格遵守 O1->O5 排序（基础门禁先行）"
+      - "每个 P0 AC 至少映射到一个 step 的 verification"
+      - "关键锁（ports/health keys/request-id/error/pagination）至少在一个早期 step 中固化并被门禁覆盖"
+      - "依赖关系无环（DAG）"
+      - "并行批次按 conflict_domain 隔离，降低合流冲突"

@@ -1,0 +1,1136 @@
+MASTER_PLAN:
+  meta:
+    artifact_id: plan-<project>-20251228
+    version: 1.0.0
+    status: frozen
+    language: zh-CN
+    created_at: '2025-12-28T22:00:00+09:00'
+    owners:
+      primary: DevPlanner
+      approver: User
+    inputs_fingerprints:
+      AI_SPECDIGEST:
+        version: 1.0.0
+        status: frozen
+        sha256: 77b334b8533592dbe7c74adb7d5e5e36a13266c23d95cdc72705c84a319e03cf
+      REQ_CONTRACT_SUMMARY:
+        present: true
+        sha256: 372ad06078231988db64b79c1ea95b2081fc89f2dfa1d9d129a9bd7ced62dd58
+      ARCH_DIGEST:
+        version: 1.0.0
+        status: frozen
+        sha256: adfb12f1a7ebc21cf15d5052213532bd3a484ebd19e2ad4e3b782eac11f216ca
+      ARCH_CONTRACT_SUMMARY:
+        present: true
+        sha256: 4d41770b4faa79736d363573d71d19348dd1f59d520699befc7ed9be7b5d4e7a
+      TEMPLATE_MASTER_PLAN:
+        present: true
+        sha256: 11c472e527e31eb091fbbf264c7e436d7c5a1b4602ad1da4b8dde957b6050289
+    outputs_fingerprints:
+      MASTER_PLAN:
+        version: 1.0.0
+        status: frozen
+        sha256: cf659999b6876860413ef12f38f959e0b9dbd8247dba6f39b173299d5ca87345
+      DEVELOPMENT_BATCHES:
+        version: 1.0.0
+        status: frozen
+        sha256: cb1661508a4ad4287525917bc6758fd8fc1a51bf6d27d53aba38754ac1e1f786
+      TASK_ASSIGNMENT:
+        version: 1.0.0
+        status: frozen
+        sha256: 4b08369fb5f87e53d7e21be866211c28a7500c0d21ca4cdb24fd3e5004a22ef7
+    self_fingerprint:
+      algorithm: sha256
+      scope: YAML normalized (parse->remove meta.self_fingerprint + meta.outputs_fingerprints
+        + dump, LF)
+      value: cf659999b6876860413ef12f38f959e0b9dbd8247dba6f39b173299d5ca87345
+    change_rules:
+    - 本文件 frozen 后，任何变更必须通过 PLAN_CHANGE_REQUEST（Window-5）进行版本化（bump version）并更新 self_fingerprint。
+    - 禁止在 Dev 批次内修改 AI_SPECDIGEST/ARCH_DIGEST 锁定项；如需变更，走 CR（Window-5）。
+    - 执行策略：一批次一冲突域；一批次由一个 Dev Window 负责并合流；批次之间按依赖严格串行。
+  planning_principles:
+    ordering_heuristics:
+    - 'O1: 基础门禁/可观测性/错误信封/RequestID/CI'
+    - 'O2: 数据模型与存储骨架'
+    - 'O3: API 路由与 DTO 契约'
+    - 'O4: 最小可用垂直切片（One Happy Path）'
+    - 'O5: 扩展功能与边界情况'
+    step_granularity_rules:
+    - 每个 step 必须：可独立合并、可验收、可回滚（revert/feature-flag）。
+    - 每个 step 必须：Goal / Touched Areas / Entry-Exit / Verification / Rollback / Depends_on
+      / Conflict_domain。
+    - Verification 必须是可执行命令 + 预期结果摘要（至少 3 行关键 [ok] 输出）。
+    - 强建议：touched files <= 10；超过必须写明原因（在 touched_areas.notes）。
+    conflict_domains:
+    - api_contract
+    - data_model
+    - ui_routes
+    - infra_runtime
+    batching_policy:
+      mode: one_batch_one_conflict_domain
+      parallelizable_within_batch: false
+      single_window_per_batch: true
+      notes:
+      - 并行度通过“分阶段（Phase）”与“批次串行”控制，避免合流冲突导致漂移。
+      - 若未来需要提高并行度，只允许通过 PLAN_CHANGE_REQUEST 引入并行 lane，并明确 Domain Owner。
+  locks:
+    non_negotiable:
+      ports_lock:
+        local:
+          web_dev_server: 2000
+          api_server: 7000
+        docker:
+          web: 2000
+          api: 7000
+        reserved:
+        - name: db
+          port: <optional>
+        - name: redis
+          port: <optional>
+        notes:
+        - 端口一经锁定不得修改（除非 CR-L2）
+      request_id:
+        header_in: X-Request-Id
+        header_out: X-Request-Id
+        generation_rule: server_generates_if_missing
+        notes:
+        - 必须贯穿日志；与 observability.logging.field_map 对齐
+      health:
+        endpoint: /health
+        response_keys_required:
+        - status
+        - version
+        - db
+        - storage
+        - last_error_summary
+      logging_required_fields:
+      - ts
+      - level
+      - message
+      - request_id
+      - event
+      - module
+      error_envelope:
+        required: true
+        schema_required_keys:
+        - error
+        error_object_required_keys:
+        - code
+        - message
+        - request_id
+        error_object_optional_keys:
+        - details
+      pagination:
+        style: offset
+        defaults:
+          limit_default: 20
+          limit_max: 200
+        request_params:
+        - limit
+        - offset
+        - order
+        response_shape:
+          required_keys:
+          - items
+          - page
+          page_object_required_keys:
+          - limit
+          - offset
+          - total
+          - has_more
+      required_endpoints:
+        health: /health
+        openapi: /openapi.json
+        assets_list: /assets
+        asset_detail: /assets/{asset_id}
+        runs_create: /runs
+        runs_get: /runs/{run_id}
+        reviews_create: /reviews
+        trash_empty: /trash/empty
+      immutability_policy:
+        evidence_chain_records: append_only|versioned
+        notes:
+        - 证据链记录不得静默覆盖；复用必须产生新 Run/新 PromptPack（与 spec 对齐）
+      asset_delete_invariants:
+      - Asset.type in {image, video}
+      - Asset 支持软删除（deleted_at）
+  phased_delivery:
+  - phase_id: PHASE-P0
+    goal: 交付最小闭环（AC-001..AC-004）+ 稳定门禁（/health/request-id/error/pagination）+ 端到端 Happy
+      Path 证据。
+    batches:
+    - BATCH-0
+    - BATCH-1
+    - BATCH-2
+    - BATCH-3
+    - BATCH-4
+  - phase_id: PHASE-P1
+    goal: 交付可用性与扩展能力（AC-005..AC-006 + Shots/Export/ProviderAdapter），以 Feature Flag
+      隔离风险。
+    batches:
+    - BATCH-5
+    - BATCH-6
+    - BATCH-7
+    - BATCH-8
+  traceability_matrix:
+    acceptance_to_steps:
+    - acceptance_id: AC-001
+      step_ids:
+      - STEP-110-ui-library
+      - STEP-150-e2e-happy-path
+    - acceptance_id: AC-002
+      step_ids:
+      - STEP-120-ui-asset-detail
+      - STEP-150-e2e-happy-path
+    - acceptance_id: AC-003
+      step_ids:
+      - STEP-130-ui-generate
+      - STEP-150-e2e-happy-path
+    - acceptance_id: AC-004
+      step_ids:
+      - STEP-140-ui-review
+      - STEP-150-e2e-happy-path
+    - acceptance_id: AC-005
+      step_ids:
+      - STEP-160-ui-ux-depth-limit
+    - acceptance_id: AC-006
+      step_ids:
+      - STEP-230-export-import-p1
+    nfr_to_steps:
+    - nfr_key: observability
+      step_ids:
+      - STEP-010-foundations-observability
+      - STEP-150-e2e-happy-path
+    - nfr_key: performance
+      step_ids:
+      - STEP-060-api-assets-read
+      - STEP-110-ui-library
+      - STEP-130-ui-generate
+    - nfr_key: reliability
+      step_ids:
+      - STEP-030-data-storage-skeleton
+      - STEP-070-api-runs-core
+      - STEP-190-provider-adapter-p1
+    - nfr_key: security
+      step_ids:
+      - STEP-090-api-delete-trash
+      - STEP-230-export-import-p1
+    - nfr_key: usability
+      step_ids:
+      - STEP-130-ui-generate
+      - STEP-160-ui-ux-depth-limit
+      - STEP-170-ui-bulk-actions-p1
+  steps:
+  - id: STEP-000-context-sync
+    title: Context Sync & Baseline Gates Skeleton
+    conflict_domain: infra_runtime
+    batch_hint: BATCH-0
+    goal: 建立可重复的开发/验证基线：统一启动方式、门禁脚本入口、最小运行手册（不要求功能完整，但要求可运行）。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - scripts/**
+      - docs/**
+      - apps/api/** (boot only)
+      - apps/web/** (boot only)
+    entry_criteria:
+    - 已获取 frozen 输入指纹（spec/arch）。
+    - 本地端口锁：web=2000, api=7000。
+    exit_criteria:
+    - 存在统一总门禁入口（scripts/gate_all.sh）并支持 preflight。
+    - runbook 明确本地/容器启动路径与端口锁定。
+    verification:
+      commands:
+      - bash scripts/gate_all.sh --mode=preflight
+      expected:
+      - '[ok] prints inputs fingerprints (spec/arch sha256)'
+      - '[ok] validates ports lock: 2000/7000'
+      - '[warn] missing downstream gates reported explicitly (preflight may exit non-zero)'
+    rollback:
+      strategy:
+      - revert 合并提交恢复到上一可用 baseline。
+      - 若引入 preflight 开关，允许临时关闭非关键 gate，但 ports_lock 检查不得移除。
+    depends_on: []
+    trace_to:
+      spec_refs:
+        acceptance_ids: []
+        decision_ids: []
+        nfr_keys:
+        - observability
+      arch_refs:
+        locks:
+        - ports_lock
+        - integration_strategy.gates_and_ci
+  - id: STEP-010-foundations-observability
+    title: Observability + Core Runtime Contract (health/logging/request-id/error
+      envelope)
+    conflict_domain: infra_runtime
+    batch_hint: BATCH-0
+    goal: 实现并锁定可观测性与核心运行契约：/health keys、X-Request-Id 贯穿、结构化日志字段、统一错误信封（含 request_id），并纳入可机检门禁。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/**
+      - scripts/**
+      - docs/**
+    entry_criteria:
+    - STEP-000 已合流；gate_all preflight 可运行。
+    exit_criteria:
+    - /health 响应 keys 固定：status/version/db/storage/last_error_summary。
+    - X-Request-Id：入站缺失则服务端生成；出站必回显；日志包含 required_fields。
+    - 错误响应符合 error_envelope（含 request_id）。
+    - /openapi.json 可访问。
+    - required_gates 全部可运行：api_smoke/openapi_reachable/health_contract_check/request_id_propagation_check。
+    verification:
+      commands:
+      - bash scripts/gate_api_smoke.sh
+      expected:
+      - '[ok] /health keys present: status, version, db, storage, last_error_summary'
+      - '[ok] header present: x-request-id (non-empty)'
+      - '[ok] /openapi.json reachable'
+      - '[ok] error envelope includes request_id and required keys'
+    rollback:
+      strategy:
+      - revert 合并提交。
+      - 若中间件导致服务不可用：先回退到 STEP-000 版本并保留 ports_lock 检查。
+    depends_on:
+    - STEP-000-context-sync
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - observability
+      arch_refs:
+        locks:
+        - observability.health_check
+        - observability.logging.required_fields
+        - api_contract_addendum.request_tracking
+        - api_contract_addendum.error_envelope
+        - api_contract_addendum.required_endpoints.health
+        - api_contract_addendum.required_endpoints.openapi
+        - integration_strategy.gates_and_ci
+  - id: STEP-030-data-storage-skeleton
+    title: DB/Storage Skeleton (sqlite+alembic+local_fs) with health reporting
+    conflict_domain: data_model
+    batch_hint: BATCH-1
+    goal: 建立 SQLite+Alembic 迁移骨架与本地文件存储契约，并在 /health.db 与 /health.storage 报告状态。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/**
+      - docs/**
+    entry_criteria:
+    - STEP-010 已完成且 /health 契约稳定。
+    exit_criteria:
+    - 数据库连接可用（sqlite）；迁移命令可运行。
+    - 本地存储 root 可写；路径在 /health.storage 中可见。
+    - 新增 db/storage gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_db_storage.sh
+      expected:
+      - '[ok] db status: ok (sqlite)'
+      - '[ok] storage status: ok (local_fs)'
+      - '[ok] migrations runnable'
+    rollback:
+      strategy:
+      - revert 合并提交。
+      - 仅 dev 环境允许重置本地 db 文件与 storage 临时目录（需记录在 runbook）。
+    depends_on:
+    - STEP-010-foundations-observability
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - reliability
+      arch_refs:
+        locks:
+        - data_model_lock.database_choice
+        - data_model_lock.storage_contract
+        - observability.health_check
+  - id: STEP-040-core-entities
+    title: Core Entities v0 (Asset/PromptPack/Run/Review/Link) + immutability fields
+    conflict_domain: data_model
+    batch_hint: BATCH-1
+    goal: 落地核心实体边界与不变量：证据链 append-only（PromptPack/Run/Review），Link 为唯一跨实体关系来源，Asset
+      支持 soft delete。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (models+migrations)
+    entry_criteria:
+    - STEP-030 已完成（迁移可运行）。
+    exit_criteria:
+    - 表存在：Asset, PromptPack, Run, Review, Link。
+    - Asset 支持软删除（deleted_at）。
+    - 证据链记录（PromptPack/Run/Review）不允许静默覆盖（通过服务层策略）。
+    - Link 可表达 source/target（type+id）。
+    - models gate 覆盖关键表/列。
+    verification:
+      commands:
+      - bash scripts/gate_models.sh
+      expected:
+      - '[ok] required tables exist: Asset, PromptPack, Run, Review, Link'
+      - '[ok] Asset.deleted_at present'
+      - '[ok] Link schema supports source_type/source_id/target_type/target_id'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-030-data-storage-skeleton
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-001
+        - AC-002
+        - AC-003
+        - AC-004
+        nfr_keys:
+        - reliability
+      arch_refs:
+        locks:
+        - data_model_lock.entity_boundaries
+        - data_model_lock.immutability_policy
+  - id: STEP-050-optional-hierarchy-entities
+    title: Optional Hierarchy Entities (Project/Series/Shot) with nullable assignment
+    conflict_domain: data_model
+    batch_hint: BATCH-1
+    goal: 补齐可选层级实体（Project/Series/Shot）并保证可空（支持未归档资产总览）。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (models+migrations)
+    entry_criteria:
+    - STEP-040 已完成。
+    exit_criteria:
+    - 表存在：Project, Series, Shot。
+    - Project/Series 可为空（支持未归档资产），与 D-001 对齐。
+    verification:
+      commands:
+      - bash scripts/gate_models.sh
+      expected:
+      - '[ok] required tables exist: Project, Series, Shot'
+      - '[ok] optional assignment supported (unassigned assets possible)'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-040-core-entities
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-001
+        - AC-002
+        decision_ids:
+        - D-001
+      arch_refs:
+        locks:
+        - data_model_lock.entity_boundaries
+  - id: STEP-060-api-assets-read
+    title: Assets Read APIs (GET /assets, GET /assets/{id}) with pagination + traceability
+      summary
+    conflict_domain: api_contract
+    batch_hint: BATCH-2
+    goal: 实现资产读取最小闭环：全量浏览（无需 project/series）、分页 offset/limit、资产详情包含追溯入口摘要。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (assets routes/dto/service)
+      - docs/**
+    entry_criteria:
+    - BATCH-1 已合流（核心实体就绪）；STEP-010 契约稳定。
+    exit_criteria:
+    - GET /assets 支持 limit/offset（默认20，max200），返回 items + page{limit,offset,total,has_more}。
+    - GET /assets/{id} 返回 asset + traceability refs。
+    - 默认排除 deleted；include_deleted=true 可查看回收站。
+    - assets gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_assets_read.sh
+      expected:
+      - '[ok] GET /assets returns items + page with required keys'
+      - '[ok] default excludes deleted; include_deleted shows soft-deleted assets'
+      - '[ok] GET /assets/{id} includes traceability refs'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-050-optional-hierarchy-entities
+    - STEP-010-foundations-observability
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-001
+        - AC-002
+        decision_ids:
+        - D-001
+      arch_refs:
+        locks:
+        - api_contract_addendum.pagination
+        - api_contract_addendum.required_endpoints.assets_list
+        - api_contract_addendum.required_endpoints.asset_detail
+  - id: STEP-070-api-runs-core
+    title: Runs APIs (POST /runs, GET /runs/{id}) + PromptPack/Run append-only evidence
+    conflict_domain: api_contract
+    batch_hint: BATCH-2
+    goal: 实现生成任务最小证据链：四类生成入口创建 Run（伴随 PromptPack），并可查询状态与结果引用。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (runs/prompt_packs routes/dto/service)
+      - docs/**
+    entry_criteria:
+    - STEP-040 已完成；STEP-010 契约稳定。
+    exit_criteria:
+    - POST /runs 创建 PromptPack + Run（append-only），返回 run_id。
+    - GET /runs/{id} 返回 status + 结果引用。
+    - runs gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_runs_core.sh
+      expected:
+      - '[ok] POST /runs returns run_id'
+      - '[ok] GET /runs/{id} returns status and result references'
+      - '[ok] evidence records created and not overwritten'
+    rollback:
+      strategy:
+      - revert 合并提交。
+      - 若 ProviderAdapter 未就绪：允许 stub/noop 以保证证据链落库；后续 P1 替换。
+    depends_on:
+    - STEP-040-core-entities
+    - STEP-010-foundations-observability
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-003
+        nfr_keys:
+        - reliability
+        - performance
+      arch_refs:
+        locks:
+        - api_contract_addendum.required_endpoints.runs_create
+        - api_contract_addendum.required_endpoints.runs_get
+        - data_model_lock.immutability_policy
+        - stack_lock.provider_integration
+  - id: STEP-080-api-reviews-core
+    title: Reviews API (POST /reviews) with sampled/override rules + audit intent
+    conflict_domain: api_contract
+    batch_hint: BATCH-2
+    goal: 实现审核记录写入契约：量化分数+overall_pass+reasons[]；支持 auto|sampled|manual|override；override
+      必填原因。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (reviews routes/dto/service)
+      - docs/**
+    entry_criteria:
+    - STEP-070 已完成。
+    exit_criteria:
+    - POST /reviews 写入字段：face_consistency_score/style_consistency_score/quality_score/overall_pass/reasons[]。
+    - override 缺 reason 必须返回 error_envelope（含 request_id）。
+    - 默认抽检比例 5%（可实现为 deterministic 规则，但需可观测）。
+    - reviews gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_reviews.sh
+      expected:
+      - '[ok] POST /reviews accepts required fields and returns review_id'
+      - '[ok] override without reason rejected with error envelope (request_id present)'
+      - '[ok] sampled behavior observable'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-070-api-runs-core
+    - STEP-010-foundations-observability
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-004
+        decision_ids:
+        - D-002
+        - D-003
+      arch_refs:
+        locks:
+        - api_contract_addendum.required_endpoints.reviews_create
+        - api_contract_addendum.error_envelope
+        - api_contract_addendum.request_tracking
+  - id: STEP-090-api-delete-trash
+    title: Asset Soft Delete + POST /trash/empty (audited high-risk)
+    conflict_domain: api_contract
+    batch_hint: BATCH-2
+    goal: 实现删除策略：Asset 软删除（deleted_at）+ 回收站清空（高风险操作；必须审计/记录）。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (assets delete + trash endpoint)
+      - docs/**
+    entry_criteria:
+    - STEP-060 已完成；STEP-010 契约稳定。
+    exit_criteria:
+    - 软删除：默认列表不显示；include_deleted 可见。
+    - POST /trash/empty 清空 deleted 资产及其本地文件；必须产生审计日志 event。
+    - trash gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_trash.sh
+      expected:
+      - '[ok] soft delete hides asset from default list and shows in include_deleted'
+      - '[ok] POST /trash/empty emits audit event'
+    rollback:
+      strategy:
+      - revert 合并提交。
+      - 危险操作可加二次确认/保护开关，但不得改变 endpoint path。
+    depends_on:
+    - STEP-060-api-assets-read
+    - STEP-010-foundations-observability
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - security
+        - observability
+      arch_refs:
+        locks:
+        - data_model_lock.entity_boundaries (Asset invariants)
+        - api_contract_addendum.required_endpoints.trash_empty
+  - id: STEP-100-ui-shell-routes
+    title: UI App Shell + Required Routes Skeleton
+    conflict_domain: ui_routes
+    batch_hint: BATCH-3
+    goal: 实现前端路由与页面骨架（/ /library /assets/:id /generate），对齐端口与 API client 基线。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+      - docs/**
+    entry_criteria:
+    - BATCH-2 已合流（assets/runs/reviews 可用）且 web 端口锁 2000。
+    exit_criteria:
+    - 路由可访问且空数据可渲染，不崩溃。
+    - 基础请求不破坏 request-id 传播（后端回显可见）。
+    - web routes gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_web_routes.sh
+      expected:
+      - '[ok] routes accessible: /, /library, /assets/:id, /generate'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-060-api-assets-read
+    - STEP-010-foundations-observability
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - usability
+      arch_refs:
+        locks:
+        - ports_lock
+  - id: STEP-110-ui-library
+    title: Library Overview (AC-001) - show all image/video assets + pagination +
+      open detail
+    conflict_domain: ui_routes
+    batch_hint: BATCH-3
+    goal: 交付 AC-001：总览页展示全部图片与视频资产，支持分页，并可进入详情。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+    entry_criteria:
+    - STEP-100 已完成；STEP-060 已完成。
+    exit_criteria:
+    - 首页或 /library 可展示图片与视频（缩略图/封面 + 元数据）。
+    - 分页交互可用。
+    - 点击卡片进入 /assets/:id。
+    - AC-001 gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_ac_001.sh
+      expected:
+      - '[ok] overview lists both image and video assets'
+      - '[ok] pagination works'
+      - '[ok] opens asset detail'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-100-ui-shell-routes
+    - STEP-060-api-assets-read
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-001
+        decision_ids:
+        - D-001
+      arch_refs:
+        locks: []
+  - id: STEP-120-ui-asset-detail
+    title: Asset Detail (AC-002) - preview + metadata + traceability entry points
+    conflict_domain: ui_routes
+    batch_hint: BATCH-3
+    goal: 交付 AC-002：资产详情展示预览、元数据、关联信息与追溯入口。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+    entry_criteria:
+    - STEP-110 已完成；STEP-060 detail 可用。
+    exit_criteria:
+    - 详情页展示预览（图/视频封面/代理）与关键元数据。
+    - 追溯区域可见并可定位关联对象（至少以 ID/链接形式）。
+    - AC-002 gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_ac_002.sh
+      expected:
+      - '[ok] detail shows preview + metadata'
+      - '[ok] traceability references present'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-110-ui-library
+    - STEP-060-api-assets-read
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-002
+      arch_refs:
+        locks: []
+  - id: STEP-130-ui-generate
+    title: Generate (AC-003) - 4 generation entry types + submit run + poll status
+      + show results
+    conflict_domain: ui_routes
+    batch_hint: BATCH-3
+    goal: 交付 AC-003：四类生成入口 + 提交 run + 轮询状态 + 展示结果并默认入库可追溯。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+    entry_criteria:
+    - STEP-110 已完成；STEP-070 已完成。
+    exit_criteria:
+    - t2i/i2i/t2v/i2v 均可发起（UI 覆盖输入形态）。
+    - 提交后可见 run 状态并展示结果。
+    - 结果资产在总览页出现，且详情可追溯到 PromptPack/Run。
+    - AC-003 gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_ac_003.sh
+      expected:
+      - '[ok] create run for each type'
+      - '[ok] poll status and show result'
+      - '[ok] result appears in library and is traceable'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-110-ui-library
+    - STEP-070-api-runs-core
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-003
+        nfr_keys:
+        - usability
+        - performance
+      arch_refs:
+        locks: []
+  - id: STEP-140-ui-review
+    title: Review UI (AC-004) - scores + pass/fail + sampled/override + reason required
+    conflict_domain: ui_routes
+    batch_hint: BATCH-3
+    goal: 交付 AC-004：展示审核分数与结论；支持抽检标识与人工覆写；覆写原因必填并展示 error envelope（含 request_id）。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+    entry_criteria:
+    - STEP-120 已完成；STEP-080 已完成。
+    exit_criteria:
+    - 详情页显示分数与 overall_pass + reasons[]。
+    - sampled/override 标识清晰。
+    - override 缺 reason 时 UI 展示错误信封（含 request_id）。
+    - AC-004 gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_ac_004.sh
+      expected:
+      - '[ok] review displayed with required fields'
+      - '[ok] override missing reason shows error envelope with request_id'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-120-ui-asset-detail
+    - STEP-080-api-reviews-core
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-004
+        nfr_keys:
+        - usability
+      arch_refs:
+        locks:
+        - api_contract_addendum.error_envelope
+        - api_contract_addendum.request_tracking
+  - id: STEP-150-e2e-happy-path
+    title: Integration & E2E Gates (Happy Path evidence for AC-001..004)
+    conflict_domain: infra_runtime
+    batch_hint: BATCH-4
+    goal: 固化端到端 Happy Path 回归门禁：生成→审核→入库→总览展示→详情追溯，并输出证据摘要。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - scripts/**
+      - docs/**
+    entry_criteria:
+    - BATCH-3 已合流（UI P0 完成）。
+    exit_criteria:
+    - 端到端验证脚本纳入 gate_all full mode。
+    - 输出证据摘要（日志片段/关键输出）。
+    - PHASE-P0 gates 全绿。
+    verification:
+      commands:
+      - bash scripts/gate_all.sh --mode=full
+      expected:
+      - '[ok] required gates: api_smoke/openapi_reachable/health_contract_check/request_id_propagation_check'
+      - '[ok] AC-001..AC-004 gates pass'
+      - '[ok] e2e happy path passes'
+    rollback:
+      strategy:
+      - revert 合并提交。
+      - 若 e2e 不稳定：只允许通过 PLAN_CHANGE_REQUEST 降级为 nightly，并给出恢复条件。
+    depends_on:
+    - STEP-140-ui-review
+    - STEP-090-api-delete-trash
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-001
+        - AC-002
+        - AC-003
+        - AC-004
+        nfr_keys:
+        - reliability
+        - observability
+      arch_refs:
+        locks:
+        - integration_strategy.gates_and_ci
+  - id: STEP-160-ui-ux-depth-limit
+    title: UX Depth Limit (AC-005) - core task <= 3 interactions
+    conflict_domain: ui_routes
+    batch_hint: BATCH-5
+    goal: 交付 AC-005：从首页完成“提交生成→查看结果”不超过3层页面/弹层，并提供明确路径提示。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+      - docs/** (ux proof)
+    entry_criteria:
+    - STEP-150 已完成（PHASE-P0 gates 全绿）。
+    exit_criteria:
+    - 交互层级≤3 的证据在 docs/ 记录并与 UI 一致。
+    - AC-005 gate 可运行（输出 pass/fail）。
+    verification:
+      commands:
+      - bash scripts/gate_ac_005.sh
+      expected:
+      - '[ok] interaction depth <= 3 confirmed'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-150-e2e-happy-path
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-005
+        nfr_keys:
+        - usability
+      arch_refs:
+        locks: []
+  - id: STEP-170-ui-bulk-actions-p1
+    title: Bulk Actions (P1) - batch select + soft delete + status filters
+    conflict_domain: ui_routes
+    batch_hint: BATCH-5
+    goal: P1：高频操作批处理（批量选择/软删除）与状态筛选。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+    entry_criteria:
+    - STEP-150 已完成；STEP-090 软删除可用。
+    exit_criteria:
+    - 总览支持批量选择并批量软删除。
+    - bulk actions gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_bulk_actions.sh
+      expected:
+      - '[ok] bulk select + soft delete works'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-150-e2e-happy-path
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - usability
+      arch_refs:
+        locks: []
+  - id: STEP-180-ui-trash-view-p1
+    title: Trash View + Empty Confirmation (P1)
+    conflict_domain: ui_routes
+    batch_hint: BATCH-5
+    goal: P1：回收站视图（include_deleted）与清空二次确认，并展示审计反馈。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+    entry_criteria:
+    - STEP-150 已完成；STEP-090 trash empty 可用。
+    exit_criteria:
+    - 可查看回收站资产并执行清空二次确认。
+    - trash UI gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_trash_ui.sh
+      expected:
+      - '[ok] trash list loads'
+      - '[ok] empty trash requires confirmation and succeeds'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-150-e2e-happy-path
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - security
+        - usability
+      arch_refs:
+        locks: []
+  - id: STEP-200-api-shots-p1
+    title: Shots Reference API (P1) - create/list shots and link assets (reference
+      only)
+    conflict_domain: api_contract
+    batch_hint: BATCH-6
+    goal: P1：Shot 编排（仅引用关系，不做剪辑）API：创建/查询 Shot、维护 Asset 引用关系（通过 Link）。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (shots+links)
+      - docs/**
+    entry_criteria:
+    - STEP-050 已完成（Shot/Link schema 就绪）；PHASE-P0 完成。
+    exit_criteria:
+    - Shot 最小接口可用，引用关系通过 Link 维护。
+    - shots P1 gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_shots_p1.sh
+      expected:
+      - '[ok] create/list/get shot; add/remove asset references'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-150-e2e-happy-path
+    trace_to:
+      spec_refs:
+        scope_ids:
+        - Shots
+        nfr_keys:
+        - usability
+      arch_refs:
+        locks: []
+  - id: STEP-210-ui-shots-p1
+    title: Shots Minimal UI (P1) - manage references
+    conflict_domain: ui_routes
+    batch_hint: BATCH-7
+    goal: P1：Shot 工作台最小 UI：创建 Shot 并添加/移除引用资产（仅关系）。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/web/**
+    entry_criteria:
+    - STEP-200 已完成（shots API 可用）。
+    exit_criteria:
+    - Shot UI 可创建并维护资产引用；不承诺剪辑/合成。
+    - shots UI gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_shots_ui_p1.sh
+      expected:
+      - '[ok] shot workspace loads; references can be managed'
+    rollback:
+      strategy:
+      - revert 合并提交。
+    depends_on:
+    - STEP-200-api-shots-p1
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - usability
+      arch_refs:
+        locks: []
+  - id: STEP-190-provider-adapter-p1
+    title: ProviderAdapter Real Execution (P1) - replace stub with runnable adapter
+      under flag
+    conflict_domain: infra_runtime
+    batch_hint: BATCH-8
+    goal: P1：将 ProviderAdapter 从 stub/noop 升级为可执行适配器（不锁定具体 provider），以 Feature Flag
+      隔离。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (provider adapters + runner)
+      - scripts/**
+      - docs/**
+    entry_criteria:
+    - STEP-070 已完成；PHASE-P0 完成。
+    exit_criteria:
+    - 至少一种 adapter 可执行并完成 run（成功/失败均记录）。
+    - 失败重试：新建 Run（append-only）。
+    - provider adapter gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_provider_adapter.sh
+      expected:
+      - '[ok] run completes; status transitions recorded'
+      - '[ok] retry creates new Run (append-only)'
+    rollback:
+      strategy:
+      - Feature Flag 切回 stub；必要时 revert 合并提交。
+    depends_on:
+    - STEP-150-e2e-happy-path
+    trace_to:
+      spec_refs:
+        nfr_keys:
+        - reliability
+      arch_refs:
+        locks:
+        - stack_lock.provider_integration
+        - data_model_lock.immutability_policy
+  - id: STEP-230-export-import-p1
+    title: Encrypted Export/Preview/Import (AC-006 P1) - directory package
+    conflict_domain: infra_runtime
+    batch_hint: BATCH-8
+    goal: 交付 AC-006：导出目录包可选加密；支持无导入预览；导入迁移保持关系与证据链一致（需求层）。
+    touched_areas:
+      max_files_preferred: 10
+      expected_paths:
+      - apps/api/** (export/import)
+      - apps/web/** (preview UI)
+      - docs/**
+    entry_criteria:
+    - PHASE-P0 完成；核心实体与 Link 稳定。
+    exit_criteria:
+    - 导出包可加密；密钥不得明文与包同放。
+    - 无导入预览：缩略图/代理 + 元数据/关系/证据链只读浏览。
+    - 导入后关系与证据链不丢失。
+    - export/import gate 可运行并纳入 gate_all。
+    verification:
+      commands:
+      - bash scripts/gate_export_import_p1.sh
+      expected:
+      - '[ok] export package created; encrypted when enabled'
+      - '[ok] key material not stored inside package'
+      - '[ok] preview works without import'
+      - '[ok] import restores relationships and evidence chain'
+    rollback:
+      strategy:
+      - Feature Flag 关闭 export/import；必要时 revert 合并提交。
+    depends_on:
+    - STEP-150-e2e-happy-path
+    trace_to:
+      spec_refs:
+        acceptance_ids:
+        - AC-006
+        decision_ids:
+        - D-006
+        nfr_keys:
+        - security
+        - reliability
+      arch_refs:
+        locks:
+        - data_model_lock.storage_contract
+        - data_model_lock.immutability_policy
+  batching_guidance:
+    batches:
+    - id: BATCH-0
+      name: P0 Foundations & Gates
+      conflict_domain: infra_runtime
+      parallelizable: false
+      includes_steps:
+      - STEP-000-context-sync
+      - STEP-010-foundations-observability
+    - id: BATCH-1
+      name: P0 Data/Storage Skeleton
+      conflict_domain: data_model
+      parallelizable: false
+      includes_steps:
+      - STEP-030-data-storage-skeleton
+      - STEP-040-core-entities
+      - STEP-050-optional-hierarchy-entities
+    - id: BATCH-2
+      name: P0 API Contract Slices
+      conflict_domain: api_contract
+      parallelizable: false
+      includes_steps:
+      - STEP-060-api-assets-read
+      - STEP-070-api-runs-core
+      - STEP-080-api-reviews-core
+      - STEP-090-api-delete-trash
+    - id: BATCH-3
+      name: P0 UI Slices
+      conflict_domain: ui_routes
+      parallelizable: false
+      includes_steps:
+      - STEP-100-ui-shell-routes
+      - STEP-110-ui-library
+      - STEP-120-ui-asset-detail
+      - STEP-130-ui-generate
+      - STEP-140-ui-review
+    - id: BATCH-4
+      name: P0 Integration & E2E
+      conflict_domain: infra_runtime
+      parallelizable: false
+      includes_steps:
+      - STEP-150-e2e-happy-path
+    - id: BATCH-5
+      name: P1 UX & Library Ops
+      conflict_domain: ui_routes
+      parallelizable: false
+      includes_steps:
+      - STEP-160-ui-ux-depth-limit
+      - STEP-170-ui-bulk-actions-p1
+      - STEP-180-ui-trash-view-p1
+    - id: BATCH-6
+      name: P1 Shots API
+      conflict_domain: api_contract
+      parallelizable: false
+      includes_steps:
+      - STEP-200-api-shots-p1
+    - id: BATCH-7
+      name: P1 Shots UI
+      conflict_domain: ui_routes
+      parallelizable: false
+      includes_steps:
+      - STEP-210-ui-shots-p1
+    - id: BATCH-8
+      name: P1 Providers + Export/Import
+      conflict_domain: infra_runtime
+      parallelizable: false
+      includes_steps:
+      - STEP-190-provider-adapter-p1
+      - STEP-230-export-import-p1
+  planner_self_check:
+    checklist:
+    - 所有 steps 均包含：Goal/Touched/Entry-Exit/Verification/Rollback/Depends_on。
+    - 严格遵守 O1->O5 顺序（门禁与可观测性先行）。
+    - PHASE-P0 覆盖 AC-001..AC-004；PHASE-P1 覆盖 AC-005..AC-006。
+    - 关键锁（ports/health keys/request-id/error/pagination）在 BATCH-0 中固化并被门禁覆盖。
+    - 批次采用 one_batch_one_conflict_domain + single_window_per_batch，降低合流冲突。
+    - 依赖关系无环（DAG）。

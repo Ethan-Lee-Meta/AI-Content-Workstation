@@ -1,0 +1,363 @@
+ARCH_DIGEST:
+  meta:
+    artifact_id: "arch-<project>-<yyyymmdd>"
+    version: "1.0.0"
+    status: "draft" # draft|frozen
+    language: "zh-CN"
+    created_at: "<ISO8601>"
+    owners:
+      primary: "ChiefArchitect"
+      approver: "User"
+    inputs_fingerprints:
+      AI_SPECDIGEST:
+        version: "<spec_version>"
+        status: "<draft|frozen>"
+        sha256: "<spec_sha256>"
+    fingerprints:
+      arch_sha256: "<to_be_computed>"
+    change_policy:
+      frozen_immutable: true
+      change_level: "CR-L2"
+      owner_window: "ChangeCoordinator"
+      change_flow:
+        - "发现需修改已锁定项 -> 提交 ARCH_CHANGE_REQUEST.yaml（CR-L2）"
+        - "Window-5 评估影响与传播 -> 批准后 bump version"
+        - "更新 arch_sha256 并通知下游（PLAN/DEV/VALIDATOR）"
+    contract_intent:
+      - "本文件是架构层 SSOT：锁定 stack/ports/dirs/contracts/observability/integration"
+      - "下游不得改锁定项（除非 CR-L2）"
+
+  # =========================================================
+  # 1) Stack Lock（技术栈锁定：必须 pinned，可被门禁检查）
+  # =========================================================
+  stack_lock:
+    frontend:
+      language: "TypeScript"
+      framework: "Next.js|React|<choose>"
+      versions_pinned:
+        node: "<e.g. 20.x pinned>"
+        package_manager: "npm|pnpm|yarn"
+        framework: "<e.g. next@x.y.z>"
+        react: "<e.g. 18.x.y>"
+      ui_tech:
+        styling: "TailwindCSS|<choose>"
+        state: "<choose or omit>"
+      notes:
+        - "避免不必要的前端嵌套层级；核心任务≤3层交互"
+    backend:
+      language: "Python"
+      framework: "FastAPI|<choose>"
+      versions_pinned:
+        python: "<e.g. 3.11.9>"
+        framework: "<e.g. fastapi@x.y.z>"
+      notes:
+        - "API-first：先锁契约再实现"
+    database:
+      kind: "sqlite|postgres"
+      versions_pinned:
+        engine: "<e.g. sqlite builtin | postgres 16>"
+      migration: "alembic|<choose>|none"
+    storage:
+      kind: "local_fs|s3_compatible"
+      notes:
+        - "需求若要求导出目录包/可预览：这里仅锁定存储抽象，不锁实现细节"
+    provider_integration:
+      style: "http_provider_api|local_workflow_runner|hybrid"
+      notes:
+        - "支持 ComfyUI/自建 Provider 的扩展；具体适配在实现阶段"
+
+  # =========================================================
+  # 2) Ports Lock（端口锁定：可被 grep 门禁检查）
+  # =========================================================
+  ports_lock:
+    local:
+      web_dev_server: 2000
+      api_server: 7000
+    docker:
+      web: 2000
+      api: 7000
+    reserved:
+      - { name: "db", port: "<optional>" }
+      - { name: "redis", port: "<optional>" }
+    notes:
+      - "端口一经锁定不得修改（除非 CR-L2）"
+
+  # =========================================================
+  # 3) Directory Contract（目录契约：允许编辑/禁止新增/模块边界）
+  # =========================================================
+  directory_contract:
+    repo_root: "."
+    layout_tree: |
+      .
+      ├── apps/
+      │   ├── web/                 # frontend
+      │   └── api/                 # backend
+      ├── docs/
+      ├── scripts/
+      ├── tmp/
+      └── data/                    # local runtime data (ignored)
+    edit_policy:
+      allow_edit_paths:
+        - "apps/web/**"
+        - "apps/api/**"
+        - "docs/**"
+        - "scripts/**"
+      forbid_new_top_level_dirs:
+        - "infra/**"
+        - "services/**"
+        - "<add if needed>"
+      forbid_edit_paths:
+        - ".git/**"
+        - "<vendor_or_generated_paths>/**"
+    module_boundaries:
+      backend_modules:
+        - "assets"
+        - "prompts"
+        - "runs"
+        - "projects"
+        - "series"
+        - "links"
+      frontend_areas:
+        - "pages"
+        - "components"
+        - "lib"
+    notes:
+      - "目录结构与模块边界是合流基础；变更需 CR-L2"
+
+  # =========================================================
+  # 4) Runtime & Env（运行方式与环境变量契约）
+  # =========================================================
+  runtime_and_env:
+    environments:
+      - "local_dev"
+      - "docker_dev"
+      - "ci"
+    commands:
+      dev:
+        web: "<e.g. cd apps/web && npm run dev -- -p 2000>"
+        api: "<e.g. cd apps/api && uvicorn app.main:app --port 7000 --reload>"
+      test:
+        api: "<e.g. pytest -q>"
+        web: "<e.g. npm test | npm run lint>"
+      build:
+        web: "<e.g. npm run build>"
+        api: "<e.g. python -m compileall>"
+      gates:
+        all: "<e.g. bash scripts/gate_all.sh>"
+        api_smoke: "<e.g. bash scripts/gate_api_smoke.sh>"
+    env_vars:
+      required:
+        - { name: "APP_ENV", default: "local_dev", purpose: "运行环境" }
+        - { name: "LOG_LEVEL", default: "info", purpose: "日志级别" }
+        - { name: "DATABASE_URL", default: "sqlite:///./data/app.db", purpose: "数据库连接" }
+        - { name: "STORAGE_ROOT", default: "./data/storage", purpose: "本地存储根目录" }
+      optional:
+        - { name: "PROVIDER_BASE_URL", default: "", purpose: "外部 Provider HTTP 地址（如启用）" }
+        - { name: "FEATURE_FLAGS", default: "", purpose: "功能开关（用于并行合流）" }
+    notes:
+      - "所有环境变量必须在 docs 中解释；默认值必须可本地运行"
+
+  # =========================================================
+  # 5) Data Model Lock（核心实体、不可变性、关系与证据链）
+  # =========================================================
+  data_model_lock:
+    database_choice:
+      kind: "sqlite|postgres"
+      rationale: "<why>"
+    entity_boundaries:
+      # 用“概念实体 + 不变量”锁边界；不在 ARCH_DIGEST 里写表结构字段细节（除非你把字段名也作为契约锁）
+      entities:
+        - name: "Project"
+          invariants:
+            - "Project.id 稳定唯一"
+        - name: "Series"
+          invariants:
+            - "Series 归属 Project（如启用）"
+        - name: "Asset"
+          invariants:
+            - "Asset.type in {image, video}"
+            - "Asset 必须可追溯到 Prompt/Run/Review（见 links/invariants）"
+        - name: "Prompt"
+          invariants:
+            - "Prompt 可被复用；若有版本概念则必须可追溯"
+        - name: "Run"
+          invariants:
+            - "Run 记录一次生成执行的输入与状态"
+        - name: "Review"
+          invariants:
+            - "Review 记录质量/一致性结论与原因"
+        - name: "Link"
+          invariants:
+            - "Link 是跨实体关系的唯一来源（如采用该原则）"
+    immutability_policy:
+      evidence_chain_records: "append_only|versioned"
+      notes:
+        - "证据链记录不得静默覆盖；复用必须产生新 Run/新版本（与 spec 对齐）"
+    storage_contract:
+      asset_storage:
+        location_ref: "local_fs_ref|object_ref"
+        exportable: true
+      notes:
+        - "导出目录包：锁定“必须可导出/可预览”的能力，不锁实现细节"
+
+  # =========================================================
+  # 6) API Contract Addendum（全局 API 规范：可观测性/错误/分页）
+  # =========================================================
+  api_contract_addendum:
+    api_first: true
+    base_conventions:
+      content_type: "application/json"
+      datetime_format: "ISO8601"
+      id_format: "<e.g. ULID|UUID|int>"
+    request_tracking:
+      header_in: "X-Request-Id"
+      header_out: "X-Request-Id"
+      generation_rule: "server_generates_if_missing"
+      notes:
+        - "必须贯穿日志；与 observability.logging.field_map 对齐"
+    error_envelope:
+      required: true
+      schema:
+        type: "object"
+        required_keys: ["error"]
+        error_object:
+          required_keys: ["code", "message", "request_id"]
+          optional_keys: ["details"]
+      standard_codes:
+        - "VALIDATION_ERROR"
+        - "NOT_FOUND"
+        - "CONFLICT"
+        - "INTERNAL_ERROR"
+    pagination:
+      style: "cursor|offset"
+      defaults:
+        limit_default: 50
+        limit_max: 200
+      response_shape:
+        required_keys: ["items", "next_cursor", "total"]
+    required_endpoints:
+      health:
+        method: "GET"
+        path: "/health"
+        response_keys_required:
+          # 这些 key 常用于门禁 grep；请按你的系统门禁需要锁死
+          - "status"
+          - "version"
+          - "db"
+          - "storage"
+          - "last_error_summary"
+        status_values:
+          ok: "ok"
+        notes:
+          - "health 响应 key 必须稳定，供 CI 门禁校验"
+      openapi:
+        path: "/openapi.json"
+        notes:
+          - "OpenAPI 必须可访问，用于契约验证与前后端对齐"
+
+  # =========================================================
+  # 7) UI Contract（路由、页面骨架、布局与交互约束）
+  # =========================================================
+  ui_contract:
+    layout:
+      app_shell: ["Sidebar", "Topbar", "MainContent", "InspectorDrawer"]
+      interaction_constraints:
+        - "核心任务（生成->查看结果）≤3层交互"
+        - "列表页支持批量选择与批量动作（BulkActionBar）"
+    routes:
+      # 路由名称与层级是“契约”；具体组件实现不在此处写
+      - { path: "/", name: "Dashboard/Home", purpose: "展示资产概览与最近活动" }
+      - { path: "/library", name: "Asset Library", purpose: "图片/视频资产列表与筛选" }
+      - { path: "/assets/:asset_id", name: "Asset Detail", purpose: "查看追溯信息与复用入口" }
+      - { path: "/generate", name: "Generate", purpose: "发起生成（图/视频）并查看运行状态" }
+      - { path: "/projects", name: "Projects", purpose: "项目管理（如启用）" }
+      - { path: "/series", name: "Series", purpose: "系列管理（如启用）" }
+    page_skeletons:
+      library:
+        must_have_sections: ["Toolbar", "Grid/List", "Filters", "BulkActionBar"]
+      asset_detail:
+        must_have_sections: ["Preview", "Metadata", "Traceability", "Actions"]
+      generate:
+        must_have_sections: ["InputForm", "RunQueue/Status", "ResultsPanel"]
+
+  # =========================================================
+  # 8) Observability（日志/指标/健康检查：架构层内置）
+  # =========================================================
+  observability:
+    health_check:
+      endpoint: "/health"
+      response_contract_locked: true
+    logging:
+      format: "json"
+      required_fields:
+        - "ts"
+        - "level"
+        - "message"
+        - "request_id"
+        - "module"
+      field_map:
+        request_id: "request_id"
+      redaction:
+        - "<secrets_fields>"
+    metrics:
+      enabled: true
+      style: "prometheus|internal|none"
+      key_metrics:
+        - "run_created_total"
+        - "run_failed_total"
+        - "asset_created_total"
+        - "review_rejected_total"
+      notes:
+        - "若不实现 metrics，也必须在此明确为 none，并在 SUMMARY 说明原因"
+    tracing:
+      enabled: false
+      notes:
+        - "可作为 future_candidates；如启用需锁定 trace_id 传播策略"
+
+  # =========================================================
+  # 9) Integration Strategy（并行开发/合流/门禁/回滚）
+  # =========================================================
+  integration_strategy:
+    development_ordering_heuristics:
+      - "O1: 基础门禁/可观测性/错误信封/RequestID/CI"
+      - "O2: 数据模型与存储骨架"
+      - "O3: API 路由与 DTO 契约"
+      - "O4: 最小可用垂直切片（One Happy Path）"
+      - "O5: 扩展功能与边界情况"
+    conflict_domains:
+      - "api_contract"
+      - "data_model"
+      - "ui_routes"
+      - "infra_runtime"
+    parallelization_rules:
+      - "通过 Feature Flags 隔离未完成模块"
+      - "合并前必须通过 gates（见 self_validation）"
+    gates_and_ci:
+      required_gates:
+        - "api_smoke"
+        - "openapi_reachable"
+        - "health_contract_check"
+        - "request_id_propagation_check"
+      rollback_strategy:
+        - "git revert <merge_commit> or disable via feature flag"
+    documentation_propagation:
+      - "每次锁定项变更必须同步更新 ARCH_CONTRACT_SUMMARY.md 并通知 Window-3/4/Dev"
+
+  # =========================================================
+  # 10) Self Validation（架构自检：供门禁脚本/人工审阅）
+  # =========================================================
+  self_validation:
+    grep_targets:
+      # 用于实现方写 gate 脚本时的稳定锚点（示例）
+      - 'web_dev_server: 2000'
+      - 'api_server: 7000'
+      - 'header_in: "X-Request-Id"'
+      - 'header_out: "X-Request-Id"'
+      - 'path: "/health"'
+      - 'response_keys_required:'
+      - '  - "version"'
+    reviewer_checklist:
+      - "是否覆盖所有 lock 区块且可机检？"
+      - "是否满足 P0 AC 与 NFR 意图（与 spec 对齐）？"
+      - "是否明确并行合流策略与冲突域？"
+      - "是否避免了实现细节与代码？"

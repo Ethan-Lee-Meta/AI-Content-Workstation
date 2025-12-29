@@ -1,0 +1,431 @@
+# ARCH_DIGEST.yaml
+ARCH_DIGEST:
+  meta:
+    artifact_id: "arch-ai-content-workstation-<yyyymmdd>"
+    version: "1.0.0"
+    status: "frozen"
+    language: "zh-CN"
+    created_at: "<ISO8601>"
+    owners:
+      primary: "ChiefArchitect"
+      approver: "User"
+    inputs_fingerprints:
+      AI_SPECDIGEST:
+        version: "1.0.0"
+        status: "frozen"
+        sha256: "<SPEC_SHA256_TBD>"
+      REQ_CONTRACT_SUMMARY:
+        present: true
+        sha256: "<OPTIONAL_SHA256_OR_NA>"
+    fingerprints:
+      arch_sha256: "<ARCH_SHA256_TBD>"
+    change_policy:
+      frozen_immutable: true
+      change_level: "CR-L2"
+      owner_window: "ChangeCoordinator"
+      change_flow:
+        - "发现需修改已锁定项 -> 提交 ARCH_CHANGE_REQUEST.yaml（CR-L2）"
+        - "Window-5 评估影响与传播 -> 批准后 bump version"
+        - "更新 arch_sha256 并通知下游（PLAN/DEV/VALIDATOR）"
+    contract_intent:
+      - "本文件是架构层 SSOT：锁定 stack/ports/dirs/contracts/observability/integration"
+      - "下游不得改锁定项（除非 CR-L2）"
+
+  stack_lock:
+    frontend:
+      language: "TypeScript"
+      framework: "Next.js"
+      versions_pinned:
+        node: "20.x (LTS; exact pinned in repo)"
+        package_manager: "npm"
+        framework: "next (exact pinned in repo)"
+        react: "18.3.1"
+      ui_tech:
+        styling: "TailwindCSS"
+        state: "React Query (or equivalent) + URL state"
+      notes:
+        - "核心任务（生成并查看结果）≤3层交互；列表支持批量操作"
+    backend:
+      language: "Python"
+      framework: "FastAPI"
+      versions_pinned:
+        python: "3.11.x (exact pinned in repo)"
+        framework: "fastapi (exact pinned in repo)"
+      notes:
+        - "API-first：先锁契约再实现；统一错误信封与 request_id 贯穿"
+    database:
+      kind: "sqlite"
+      versions_pinned:
+        engine: "sqlite builtin"
+      migration: "alembic"
+    storage:
+      kind: "local_fs"
+      notes:
+        - "资产二进制与导出目录包存于本地文件系统；导出加密细节不在 ARCH 锁定"
+    provider_integration:
+      style: "hybrid"
+      notes:
+        - "不锁定具体模型/provider；通过 ProviderAdapter 隔离差异（HTTP 或本地工作流 runner）"
+
+  ports_lock:
+    local:
+      web_dev_server: 2000
+      api_server: 7000
+    docker:
+      web: 2000
+      api: 7000
+    reserved:
+      - name: "db"
+        port: "<optional>"
+      - name: "redis"
+        port: "<optional>"
+    notes:
+      - "端口一经锁定不得修改（除非 CR-L2）"
+
+  directory_contract:
+    repo_root: "."
+    layout_tree: |
+      .
+      ├── apps/
+      │   ├── web/                 # frontend
+      │   └── api/                 # backend
+      ├── docs/
+      ├── scripts/
+      ├── tmp/
+      └── data/                    # local runtime data (ignored)
+    edit_policy:
+      allow_edit_paths:
+        - "apps/web/**"
+        - "apps/api/**"
+        - "docs/**"
+        - "scripts/**"
+      forbid_new_top_level_dirs:
+        - "infra/**"
+        - "services/**"
+      forbid_edit_paths:
+        - ".git/**"
+        - "<vendor_or_generated_paths>/**"
+    module_boundaries:
+      backend_modules:
+        - "assets"
+        - "prompt_packs"
+        - "runs"
+        - "reviews"
+        - "projects"
+        - "series"
+        - "shots"
+        - "links"
+      frontend_areas:
+        - "pages"
+        - "components"
+        - "lib"
+    notes:
+      - "目录结构与模块边界是合流基础；变更需 CR-L2"
+
+  runtime_and_env:
+    environments:
+      - "local_dev"
+      - "docker_dev"
+      - "ci"
+    commands:
+      dev:
+        web: "<defined in repo scripts>"
+        api: "<defined in repo scripts>"
+      test:
+        api: "<defined in repo scripts>"
+        web: "<defined in repo scripts>"
+      build:
+        web: "<defined in repo scripts>"
+        api: "<defined in repo scripts>"
+      gates:
+        all: "<defined in repo scripts>"
+        api_smoke: "<defined in repo scripts>"
+    env_vars:
+      required:
+        - name: "APP_ENV"
+          default: "local_dev"
+          purpose: "运行环境"
+        - name: "LOG_LEVEL"
+          default: "info"
+          purpose: "日志级别"
+        - name: "DATABASE_URL"
+          default: "sqlite:///./data/app.db"
+          purpose: "数据库连接"
+        - name: "STORAGE_ROOT"
+          default: "./data/storage"
+          purpose: "本地存储根目录"
+      optional:
+        - name: "PROVIDER_BASE_URL"
+          default: ""
+          purpose: "外部 Provider HTTP 地址（如启用）"
+        - name: "FEATURE_FLAGS"
+          default: ""
+          purpose: "功能开关（用于并行合流）"
+    notes:
+      - "默认值必须可本地运行；环境变量必须在 docs 中解释"
+
+  data_model_lock:
+    database_choice:
+      kind: "sqlite"
+      rationale: "单机单用户与最小移动部件；支持可迁移（P1 导出/导入）"
+    entity_boundaries:
+      entities:
+        - name: "Project"
+          invariants:
+            - "Project 可为空（允许未归档资产）"
+        - name: "Series"
+          invariants:
+            - "Series 可为空或可后续归档到 Project"
+        - name: "Asset"
+          invariants:
+            - "Asset.type in {image, video}"
+            - "Asset 支持软删除（deleted_at）"
+        - name: "PromptPack"
+          invariants:
+            - "PromptPack 为不可变输入快照（append-only）"
+            - "generation_type in {t2i, i2i, t2v, i2v}"
+        - name: "Run"
+          invariants:
+            - "Run 记录一次生成执行与状态（append-only）"
+            - "失败可重试且保留失败记录"
+        - name: "Review"
+          invariants:
+            - "Review 记录量化分数与结论；支持 override 留痕（必须理由）"
+            - "overall_pass = (face>=0.80) AND (style>=0.80) AND (quality>=0.70)"
+        - name: "Shot"
+          invariants:
+            - "Shot 仅表达引用关系：每个 Shot 引用 0..N 个 Asset（P1）"
+        - name: "Link"
+          invariants:
+            - "Link 是跨实体关系的唯一来源（证据链与引用关系）"
+    immutability_policy:
+      evidence_chain_records: "append_only|versioned"
+      notes:
+        - "证据链记录不得静默覆盖；复用必须产生新 Run/新 PromptPack（与 spec 对齐）"
+    storage_contract:
+      asset_storage:
+        location_ref: "local_fs_ref"
+        exportable: true
+      notes:
+        - "导出目录包（P1）：必须可导出/可预览/可导入迁移；加密细节不在 ARCH 锁定"
+
+  api_contract_addendum:
+    api_first: true
+    base_conventions:
+      content_type: "application/json"
+      datetime_format: "ISO8601"
+      id_format: "ULID"
+    request_tracking:
+      header_in: "X-Request-Id"
+      header_out: "X-Request-Id"
+      generation_rule: "server_generates_if_missing"
+      notes:
+        - "必须贯穿日志；与 observability.logging.field_map 对齐"
+    error_envelope:
+      required: true
+      schema:
+        type: "object"
+        required_keys: ["error"]
+        error_object:
+          required_keys: ["code", "message", "request_id"]
+          optional_keys: ["details"]
+      standard_codes:
+        - "VALIDATION_ERROR"
+        - "NOT_FOUND"
+        - "CONFLICT"
+        - "INTERNAL_ERROR"
+    pagination:
+      style: "offset"
+      defaults:
+        limit_default: 20
+        limit_max: 200
+      request_params:
+        - "limit"
+        - "offset"
+        - "order"
+      response_shape:
+        required_keys:
+          - "items"
+          - "page"
+        page_object_required_keys:
+          - "limit"
+          - "offset"
+          - "total"
+          - "has_more"
+    required_endpoints:
+      health:
+        method: "GET"
+        path: "/health"
+        response_keys_required:
+          - "status"
+          - "version"
+          - "db"
+          - "storage"
+          - "last_error_summary"
+        status_values:
+          ok: "ok"
+          degraded: "degraded"
+          error: "error"
+        notes:
+          - "health 响应 key 必须稳定，供 CI 门禁校验"
+      openapi:
+        path: "/openapi.json"
+        notes:
+          - "OpenAPI 必须可访问，用于契约验证与前后端对齐"
+      assets_list:
+        method: "GET"
+        path: "/assets"
+        notes:
+          - "必须支持 project/series 为空时的全量资产浏览（分页）"
+          - "默认 exclude_deleted；可通过 include_deleted=true 查看回收站"
+      asset_detail:
+        method: "GET"
+        path: "/assets/{asset_id}"
+        notes:
+          - "必须提供追溯入口：PromptPack/Run/Review/Project/Series/Shot/Link"
+      runs_create:
+        method: "POST"
+        path: "/runs"
+        notes:
+          - "创建 PromptPack + Run（append-only），支持 t2i/i2i/t2v/i2v"
+      runs_get:
+        method: "GET"
+        path: "/runs/{run_id}"
+        notes:
+          - "支持秒级刷新（轮询）"
+      reviews_create:
+        method: "POST"
+        path: "/reviews"
+        notes:
+          - "写入审核记录：auto|sampled|manual|override；override 必填原因"
+      trash_empty:
+        method: "POST"
+        path: "/trash/empty"
+        notes:
+          - "回收站清空（高风险操作；必须审计）"
+
+  ui_contract:
+    layout:
+      app_shell:
+        - "Sidebar"
+        - "Topbar"
+        - "MainContent"
+        - "InspectorDrawer"
+      interaction_constraints:
+        - "核心任务（生成->查看结果）≤3层交互"
+        - "列表页支持批量选择与批量动作（BulkActionBar）"
+    routes:
+      - path: "/"
+        name: "Home / Library"
+        purpose: "默认展示全量资产（图片/视频）与最近活动"
+      - path: "/library"
+        name: "Asset Library"
+        purpose: "图片/视频资产列表与筛选（与 / 语义一致）"
+      - path: "/assets/:asset_id"
+        name: "Asset Detail"
+        purpose: "查看预览、元数据、追溯信息与复用入口"
+      - path: "/generate"
+        name: "Generate"
+        purpose: "发起生成（t2i/i2i/t2v/i2v）并查看运行状态与结果回链"
+      - path: "/projects"
+        name: "Projects"
+        purpose: "项目管理（可选；Project 允许为空）"
+      - path: "/series"
+        name: "Series"
+        purpose: "系列管理（可选；Series 允许为空）"
+    page_skeletons:
+      library:
+        must_have_sections:
+          - "Toolbar"
+          - "Grid/List"
+          - "Filters"
+          - "BulkActionBar"
+      asset_detail:
+        must_have_sections:
+          - "Preview"
+          - "Metadata"
+          - "Traceability"
+          - "Actions"
+          - "ReviewPanel"
+      generate:
+        must_have_sections:
+          - "InputForm"
+          - "RunQueue/Status"
+          - "ResultsPanel"
+
+  observability:
+    health_check:
+      endpoint: "/health"
+      response_contract_locked: true
+    logging:
+      format: "json"
+      required_fields:
+        - "ts"
+        - "level"
+        - "message"
+        - "request_id"
+        - "event"
+        - "module"
+      field_map:
+        request_id: "request_id"
+      redaction:
+        - "secrets"
+        - "tokens"
+        - "passwords"
+    metrics:
+      enabled: true
+      style: "internal"
+      key_metrics:
+        - "run_created_total"
+        - "run_failed_total"
+        - "asset_created_total"
+        - "review_override_total"
+        - "asset_soft_deleted_total"
+      notes:
+        - "若不实现 metrics，也必须在此明确为 none，并在 SUMMARY 说明原因"
+    tracing:
+      enabled: false
+      notes:
+        - "future_candidates；如启用需锁定 trace_id 传播策略"
+
+  integration_strategy:
+    development_ordering_heuristics:
+      - "O1: 基础门禁/可观测性/错误信封/RequestID/CI"
+      - "O2: 数据模型与存储骨架"
+      - "O3: API 路由与 DTO 契约"
+      - "O4: 最小可用垂直切片（One Happy Path）"
+      - "O5: 扩展功能与边界情况"
+    conflict_domains:
+      - "api_contract"
+      - "data_model"
+      - "ui_routes"
+      - "infra_runtime"
+    parallelization_rules:
+      - "通过 Feature Flags 隔离未完成模块"
+      - "合并前必须通过 gates（见 self_validation）"
+    gates_and_ci:
+      required_gates:
+        - "api_smoke"
+        - "openapi_reachable"
+        - "health_contract_check"
+        - "request_id_propagation_check"
+      rollback_strategy:
+        - "优先：快速回滚到上一可用版本（revert 合并提交）"
+        - "备选：Feature Flag 关闭未稳定模块"
+    documentation_propagation:
+      - "每次锁定项变更必须同步更新 ARCH_CONTRACT_SUMMARY.md 并通知 Window-3/4/Dev"
+
+  self_validation:
+    grep_targets:
+      - "web_dev_server: 2000"
+      - "api_server: 7000"
+      - "header_in: \"X-Request-Id\""
+      - "header_out: \"X-Request-Id\""
+      - "path: \"/health\""
+      - "response_keys_required:"
+      - "  - \"version\""
+    reviewer_checklist:
+      - "是否覆盖所有 lock 区块且可机检？"
+      - "是否满足 P0 AC 与 NFR 意图（与 spec 对齐）？"
+      - "是否明确并行合流策略与冲突域？"
+      - "是否避免了实现细节与代码？"

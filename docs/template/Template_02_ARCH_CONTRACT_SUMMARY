@@ -1,0 +1,228 @@
+# ARCH_CONTRACT_SUMMARY（架构契约摘要 / 下游注入包）
+
+> 用途：供 Window-03（Dev Planner）/ Dev Windows / Validator 快速对齐与执行  
+> 约束：本摘要聚焦“锁定项与契约”，不包含实现代码；细节以 ARCH_DIGEST.yaml 为准
+
+---
+
+## 0) 指纹与冻结状态（必须填写）
+
+- Project: **<project_name>**
+- Inputs:
+  - AI_SPECDIGEST: version **<spec_version>**, status **<draft|frozen>**, sha256 **<spec_sha256>**
+- ARCH_DIGEST:
+  - version **<arch_version>**
+  - status **<draft|frozen>**
+  - sha256 **<arch_sha256_or_placeholder>**
+  - created_at **<ISO8601>**
+- 变更规则：冻结后仅允许通过 **CR-L2（ARCH_CHANGE_REQUEST）→ Change Coordinator（Window-5）** 版本化更新
+- 下游执行原则：以 **ARCH_DIGEST 锁定项** 为唯一准绳，禁止口头变更
+
+---
+
+## 1) 架构对齐矩阵（Architecture Alignment Matrix）
+
+> 说明：此处使用“缩进代码块”表达 YAML，避免渲染器对反引号解析不一致导致的格式问题。
+
+    架构对齐矩阵:
+      business_goal_support:
+        - "<业务目标/北极星> -> <由哪些系统边界/模块/契约承载（概念）>"
+      user_journey_support:
+        - "<WF/Journey> -> <关键系统构件与调用路径（概念）>"
+      quality_attribute_satisfaction:
+        - "<NFR/约束> -> <由哪些机制满足（observability/error/pagination/storage/export 等）>"
+
+---
+
+## 2) 非谈判锁定项（Non-Negotiable Locks）
+
+> 下游任何实现必须严格遵守；修改需 CR-L2
+
+### 2.1 技术栈锁（stack_lock）
+
+- Frontend: **<framework + pinned versions>**
+- Backend: **<framework + pinned versions>**
+- DB: **<sqlite|postgres + pinned>**
+- Storage: **<local_fs|s3_compatible + contract>**
+- Provider Integration: **<http_provider_api|local_runner|hybrid>**
+
+### 2.2 端口锁（ports_lock）
+
+- local.web_dev_server: **2000**
+- local.api_server: **7000**
+- docker.web: **2000**
+- docker.api: **7000**
+
+### 2.3 目录契约（directory_contract）
+
+- 可编辑路径（Allowlist）：**<paths>**
+- 禁止新增顶层目录：**<paths>**
+- 模块边界（Backend Modules）：**<assets/prompts/runs/...>**
+- UI 区域边界（Frontend Areas）：**<pages/components/...>**
+
+---
+
+## 3) 全局契约（API-first & Contracts）
+
+> 这是“跨模块合流”的核心冲突域，优先稳定
+
+### 3.1 请求追踪（Request Tracking）
+
+- header_in: **X-Request-Id**
+- header_out: **X-Request-Id**
+- rule: **server_generates_if_missing**
+- 日志字段映射：**request_id → request_id**
+
+### 3.2 错误信封（Error Envelope）
+
+- required: **true**
+- required_keys: **error.code / error.message / error.request_id**
+- standard_codes:
+  - **VALIDATION_ERROR**
+  - **NOT_FOUND**
+  - **CONFLICT**
+  - **INTERNAL_ERROR**
+
+### 3.3 分页规范（Pagination）
+
+- style: **<cursor|offset>**
+- defaults: **limit_default=50, limit_max=200**
+- response keys: **items / next_cursor / total**
+
+### 3.4 必备端点（Required Endpoints）
+
+- **GET /health**
+  - required response keys:
+    - **status**
+    - **version**
+    - **db**
+    - **storage**
+    - **last_error_summary**
+- **GET /openapi.json**
+  - must be reachable（contract verification）
+
+---
+
+## 4) 数据与证据链（Data Model Lock）
+
+> 只锁定“边界/不变量/关系”，不写表结构实现细节
+
+### 4.1 核心实体边界（Entity Boundaries）
+
+- **Project / Series（如启用）**
+- **Asset（image/video）**
+- **Prompt（可复用/可追溯）**
+- **Run（一次执行记录）**
+- **Review（质量/一致性结论）**
+- **Link（如采用：跨实体关系唯一来源）**
+
+### 4.2 不可变性策略（Immutability）
+
+- evidence_chain_records: **append_only|versioned**
+- 规则：证据链不得静默覆盖；复用产生新 Run / 新版本（与 spec 对齐）
+
+### 4.3 存储契约（Storage Contract）
+
+- 资产必须有 **storage_location_ref**（概念）
+- 必须支持导出（若 spec scope 包含导出闭环）
+
+---
+
+## 5) UI 契约（Routes & Skeletons）
+
+> 路由与页面骨架是“前端合流的锁”；实现细节自由，但结构必须满足
+
+### 5.1 App Shell（布局）
+
+- **Sidebar / Topbar / MainContent / InspectorDrawer**
+- 交互约束：
+  - 核心任务 ≤ **3** 层交互
+  - 列表页支持 **BulkActionBar（批处理）**
+
+### 5.2 Routes（锁定）
+
+- **/**：Dashboard/Home（概览）
+- **/library**：Asset Library（列表/筛选/批处理）
+- **/assets/:asset_id**：Asset Detail（预览/元数据/追溯/动作）
+- **/generate**：Generate（输入/运行状态/结果）
+- **/projects**：Projects（如启用）
+- **/series**：Series（如启用）
+
+### 5.3 Page Skeletons（必须区块）
+
+- Library: **Toolbar / Grid|List / Filters / BulkActionBar**
+- Asset Detail: **Preview / Metadata / Traceability / Actions**
+- Generate: **InputForm / RunQueue|Status / ResultsPanel**
+
+---
+
+## 6) 可观测性（Observability Contract）
+
+> Window-4（Validator）将以此作为门禁依据
+
+- Logging: **json**
+  - required_fields: **ts / level / message / request_id / module**
+- Health: **/health response keys locked（见 3.4）**
+- Metrics: **enabled <true|false>**
+  - key_metrics:
+    - **run_created_total**
+    - **run_failed_total**
+    - **asset_created_total**
+    - **review_rejected_total**
+  - 若不启用：必须在 ARCH_DIGEST 明确 **metrics=none** 并说明原因
+
+---
+
+## 7) 集成与并行开发策略（Integration Strategy）
+
+### 7.1 开发排序（Ordering Heuristics）
+
+- **O1** 基础门禁 / 可观测性 / 错误信封 / RequestID / CI
+- **O2** 数据模型与存储骨架
+- **O3** API 路由与 DTO 契约
+- **O4** 最小可用垂直切片（Happy Path）
+- **O5** 扩展与边界情况
+
+### 7.2 冲突域（Conflict Domains）
+
+- **api_contract / data_model / ui_routes / infra_runtime**
+
+### 7.3 并行规则（Parallelization）
+
+- Feature Flags：隔离未完成模块，确保主干可运行
+- 合并门禁：必须通过 gates（见 7.4）
+- 回滚策略：**git revert** 合并提交 或 **feature flag 关闭**
+
+### 7.4 门禁（Gates）
+
+- **health_contract_check**（/health keys）
+- **request_id_propagation_check**（header + logs）
+- **openapi_reachable**
+- **api_smoke**（最小闭环）
+
+---
+
+## 8) 开发计划输入（给 Window-03 的明确指令）
+
+### Window-03（Dev Planner）必须做到
+
+- 将 **P0 AC（来自 spec）** 映射到 steps 的 **verification**
+- 将上述 **冲突域** 拆分成可并行批次
+- 每步都提供 **rollback 策略**（命令级策略由 Dev 窗口补全）
+
+### Dev Windows 必须做到
+
+- 不修改锁定项；如发现问题走 CR
+- 每个微任务提交前运行 **gates** 并附验证证据
+
+---
+
+## 9) 变更选项（仅当触发时填写）
+
+> 当架构师发现 spec 内部矛盾/不可验收/不可行时，必须输出 SPEC_CHANGE_REQUEST 草案交由 Window-5
+
+- Trigger: **<why>**
+- Impacted Areas: **<scope|AC|NFR|decisions>**
+- Proposed Change: **<what>**
+- Rationale: **<why better>**
+- Status: **draft（pending approval via Window-5）**

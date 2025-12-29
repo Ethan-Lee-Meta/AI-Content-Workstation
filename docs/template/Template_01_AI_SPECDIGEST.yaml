@@ -1,0 +1,498 @@
+AI_SPECDIGEST:
+  meta:
+    artifact_id: "spec-<project>-<yyyymmdd>"
+    version: "1.0.0"
+    status: "draft"  # draft|frozen
+    language: "zh-CN"
+    created_at: "<ISO8601>"
+    owners:
+      primary: "SpecAnalyst"
+      approver: "User"
+    fingerprints:
+      spec_sha256: "<to_be_computed>"
+      conversation_ref: "<optional: chat id / link / note>"
+    change_policy:
+      frozen_immutable: true
+      change_level: "CR-L1"
+      owner_window: "ChangeCoordinator"
+      change_flow:
+        - "发现需求问题或新增需求 -> 生成 SPEC_CHANGE_REQUEST.yaml"
+        - "提交至 Change Coordinator（窗口5）评估影响范围与传播路径"
+        - "批准后提升 version，并更新 spec_sha256"
+      note: "冻结后不得口头修改；以版本化变更为唯一通道"
+
+  # =========================
+  # Human-Readable (for people)
+  # =========================
+  human_readable_doc:
+    executive_summary:
+      core_value: "<核心价值一句话：例如：端到端管理AI视频/图像生产并形成可追溯证据链>"
+      target_users: "<目标用户一句话：例如：单机单用户的内容创作者/制作团队（当前默认单机）>"
+      key_differentiators:
+        - "<差异点1：例如：资产-提示词-运行记录-审核的证据链追溯>"
+        - "<差异点2：例如：支持批处理与浅层交互，降低操作成本>"
+        - "<差异点3：例如：可导出可浏览的目录包用于迁移/交付>"
+    problem_statement: "<用户当前遇到的核心问题与痛点>"
+    solution_statement: "<系统提供的解决方式（不涉及实现）>"
+    non_goals_highlight:
+      - "本窗口不定义：数据库表结构、API字段名、具体库版本、路由/接口细节"
+    glossary:
+      - term: "Asset"
+        definition: "系统管理的产出物（图片/视频）及其最小元数据与关联信息"
+      - term: "Prompt"
+        definition: "用于生成的输入文本/模板（可能包含版本概念，但实现细节由架构决定）"
+      - term: "Run"
+        definition: "一次生成执行记录（包含参数、provider/workflow引用、结果与状态）"
+      - term: "Evidence Chain"
+        definition: "从输入到输出的可追溯记录：Prompt/Run/Review/Asset等之间的关联"
+      - term: "Review"
+        definition: "对生成结果的一致性/质量审核过程与结果记录"
+      - term: "Project"
+        definition: "资产归类的顶层维度（可选）"
+      - term: "Series"
+        definition: "项目内的系列维度（可选），用于分组/编排"
+    personas:
+      - id: "P1"
+        name: "<主要用户>"
+        role: "<例如：内容创作者/制作人>"
+        context: "<使用场景>"
+        goals:
+          - "<目标1>"
+          - "<目标2>"
+        pain_points:
+          - "<痛点1>"
+          - "<痛点2>"
+      - id: "P2"
+        name: "<次要用户(可空)>"
+        role: "<可空>"
+        context: "<可空>"
+        goals: []
+        pain_points: []
+    key_user_journeys:
+      - id: "J1"
+        name: "核心：生成并入库"
+        steps:
+          - "用户输入/选择生成输入（Prompt、参考图等）"
+          - "用户选择生成类型（文生图/图生图/文生视频/图生视频）"
+          - "提交生成请求并等待完成"
+          - "系统展示结果与运行信息"
+          - "用户进行质量/一致性审核（或按默认策略自动通过+抽检）"
+          - "资产入库并可追溯查看关联信息"
+      - id: "J2"
+        name: "核心：浏览资产并回溯复用"
+        steps:
+          - "用户在首页/资产库查看图片/视频排版列表"
+          - "打开资产详情"
+          - "查看关联的Prompt/Run/Review/Project/Series信息"
+          - "一键复用（复制Prompt/参数形成新运行或新版本）"
+    constraints_from_user:
+      usability:
+        - "前端交互层级尽量浅（避免深层嵌套）"
+        - "高频操作支持批处理（批量选择/批量执行）"
+        - "关键状态清晰可见（运行中/失败/可重试/已入库）"
+
+  # =========================
+  # YAML Spec (for machines)
+  # =========================
+  yaml_spec:
+    scope:
+      in:
+        - id: "S1"
+          name: "资产库管理（图片/视频）"
+          priority: "P0"
+          includes:
+            - "展示已有资产（图片与视频）并提供合理排版"
+            - "资产详情页可查看关联信息：提示词、项目/系列、运行记录、审核结果（概念级要求）"
+            - "支持资产的删除（默认可删除）"
+          excludes:
+            - "不在本期要求：复杂权限体系/多人协作"
+            - "不要求：云端分发平台或社交发布链路"
+          future_candidates:
+            - "多用户/多设备同步"
+            - "更复杂的标签体系与检索推荐"
+        - id: "S2"
+          name: "生成能力（图像与视频）"
+          priority: "P0"
+          includes:
+            - "支持独立生成图片与视频（类似聊天窗口发起生成）"
+            - "生成结果默认保存到资产库并可追溯"
+            - "支持至少以下生成类型的需求层覆盖：文生图、图生图、文生视频、图生视频"
+          excludes:
+            - "不要求：具体provider实现细节、模型选择与参数细化（由架构窗口决定）"
+          future_candidates:
+            - "更多生成模式（如批量脚本化生成、模板化场景）"
+        - id: "S3"
+          name: "一致性/质量审核与证据链"
+          priority: "P0"
+          includes:
+            - "对生成结果进行质量/一致性审核（默认可配置为自动通过+抽检）"
+            - "形成可追溯证据链：资产可回溯到生成输入与运行过程"
+            - "失败/未通过审核需记录原因并可重试"
+          excludes:
+            - "不要求：复杂的机器自动打分算法（可先人工/规则）"
+          future_candidates:
+            - "更严格的自动评分与对比评测"
+        - id: "S4"
+          name: "编排与导出闭环（需求层）"
+          priority: "P1"
+          includes:
+            - "按分镜/顺序对资产进行编排，形成可交付的结果（需求层）"
+            - "以目录包形式导出（可浏览/预览），支持迁移导入新项目（需求层）"
+          excludes:
+            - "不要求：具体加密/流式解密实现细节（由架构窗口决定）"
+          future_candidates:
+            - "更丰富的时间线编辑/剪辑能力"
+      out:
+        - id: "O1"
+          name: "多用户登录 + RBAC"
+          reason: "当前默认单机单用户，降低复杂度"
+          common_misunderstanding: "会被误以为需要团队协作与权限"
+        - id: "O2"
+          name: "明确锁定数据库表结构/API字段名/具体技术栈版本"
+          reason: "属于架构窗口职责"
+          common_misunderstanding: "需求阶段就应给出实现细节"
+        - id: "O3"
+          name: "云端托管SaaS与商业化计费"
+          reason: "非当前范围"
+          common_misunderstanding: "资产管理系统必须配套云服务"
+
+    users_and_operating_mode:
+      collaboration_mode: "single_user_local"
+      future_multi_user: "out_of_scope"
+      target_environments:
+        - "web"
+        - "desktop"
+      usage_frequency_assumption: "daily"
+      ui_usability_constraints:
+        - "浅层交互：关键任务不超过3层页面/弹层"
+        - "批处理：资产与运行支持批量操作（选择/删除/导出等）"
+        - "状态明确：运行状态、审核状态、入库状态清晰可见"
+
+    core_capabilities:
+      - id: "C1"
+        name: "资产库（Asset Library）"
+        mapped_scope: ["S1"]
+      - id: "C2"
+        name: "生成（Generation）"
+        mapped_scope: ["S2"]
+      - id: "C3"
+        name: "审核与追溯（Review & Traceability）"
+        mapped_scope: ["S3"]
+      - id: "C4"
+        name: "编排与导出（Assembly & Export）"
+        mapped_scope: ["S4"]
+
+    workflows:
+      - id: "WF1"
+        name: "生成并入库（Happy Path）"
+        trigger: "用户发起生成"
+        preconditions:
+          - "用户提供生成输入（prompt 或参考图等）"
+        steps:
+          - "用户选择生成类型并提交"
+          - "系统展示运行状态（进行中/成功/失败）"
+          - "生成成功后展示结果与基本信息"
+          - "按默认策略进行审核（自动通过+抽检 或 人工确认）"
+          - "入库并建立追溯关联"
+        postconditions:
+          - "资产出现在资产库列表"
+          - "资产详情可查看关联的Prompt/Run/Review/Project/Series（如有）"
+        exceptions:
+          - id: "EX-WF1-1"
+            condition: "生成失败"
+            expected_handling: "记录失败原因；允许重试；失败记录保留用于追溯"
+          - id: "EX-WF1-2"
+            condition: "审核未通过"
+            expected_handling: "记录原因；允许调整输入后重试；保留未通过记录"
+      - id: "WF2"
+        name: "浏览资产并回溯复用"
+        trigger: "用户浏览资产库"
+        preconditions:
+          - "至少存在1个资产"
+        steps:
+          - "用户查看资产列表并打开详情"
+          - "查看关联信息并选择复用"
+          - "系统基于原始输入形成新的生成请求（概念层要求）"
+        postconditions:
+          - "产生新运行记录与（成功时）新资产"
+        exceptions:
+          - id: "EX-WF2-1"
+            condition: "原始输入缺失或不可复用"
+            expected_handling: "提示原因并提供替代操作（例如复制可用部分）"
+      - id: "WF3"
+        name: "编排并导出目录包"
+        trigger: "用户选择导出/交付"
+        preconditions:
+          - "用户已选定一组资产并指定顺序/分镜（若启用）"
+        steps:
+          - "用户确认导出内容与结构（概念层）"
+          - "系统生成目录包并提供预览/浏览入口（需求层）"
+        postconditions:
+          - "导出产物可在目标环境浏览/预览"
+        exceptions:
+          - id: "EX-WF3-1"
+            condition: "导出失败"
+            expected_handling: "记录原因；允许重试；不破坏原始资产与证据链"
+
+    data_and_metadata_neutral_contract:
+      asset_types: ["image", "video"]
+      minimum_asset_metadata:
+        - "asset_id"
+        - "created_at"
+        - "type"
+        - "title_or_name (optional)"
+        - "project_ref (optional)"
+        - "series_ref (optional)"
+        - "prompt_ref"
+        - "run_ref"
+        - "review_status"
+        - "storage_location_ref (conceptual)"
+      traceability_required_links:
+        - "Asset -> Prompt"
+        - "Asset -> Run"
+        - "Run -> Provider/Workflow"
+        - "Asset -> Review"
+        - "Asset -> Project (optional)"
+        - "Asset -> Series (optional)"
+      immutability_requirements:
+        - "证据链记录不可被静默覆盖；复用应产生新版本/新运行（概念层）"
+
+    acceptance_criteria:
+      - id: "AC-001"
+        type: "functional"
+        priority: "P0"
+        title: "首页/资产库可展示图片与视频并可进入详情"
+        gherkin:
+          given: "系统中至少存在1个图片资产与1个视频资产"
+          when: "用户打开首页或资产库页面"
+          then: "用户能看到合理排版的资产列表，并能打开任意资产详情"
+        verification_methods:
+          - "手工验收：按步骤点击检查"
+      - id: "AC-002"
+        type: "functional"
+        priority: "P0"
+        title: "资产详情具备追溯信息"
+        gherkin:
+          given: "存在一个已入库资产"
+          when: "用户打开资产详情"
+          then: "能看到关联的提示词信息、运行信息、审核结果，以及项目/系列信息（如有）"
+        verification_methods:
+          - "手工验收：页面字段存在且可读"
+          - "接口验收：返回包含所需概念字段（具体字段名由ARCH定义）"
+      - id: "AC-003"
+        type: "functional"
+        priority: "P0"
+        title: "支持发起生成并默认入库"
+        gherkin:
+          given: "用户提供生成输入并选择生成类型"
+          when: "用户提交生成请求并等待完成"
+          then: "生成结果可见，且默认保存到资产库，并产生可追溯记录"
+        verification_methods:
+          - "端到端验收：一次生成后在资产库可找到新资产"
+      - id: "AC-004"
+        type: "usability"
+        priority: "P1"
+        title: "浅层交互完成核心任务"
+        gherkin:
+          given: "用户要完成一次生成并查看结果"
+          when: "用户从首页开始操作"
+          then: "不需要穿越超过3层页面/弹层即可完成提交与查看结果"
+        verification_methods:
+          - "可用性走查：记录点击路径层级"
+      - id: "AC-005"
+        type: "functional"
+        priority: "P1"
+        title: "导出目录包可预览/浏览（需求层）"
+        gherkin:
+          given: "用户选择一组资产并指定顺序"
+          when: "用户执行导出"
+          then: "系统产出目录包，并提供可浏览/预览入口"
+        verification_methods:
+          - "手工验收：导出后可打开并查看结构与预览"
+
+    decisions:
+      - id: "D-001"
+        topic: "Project/Series 是否必填"
+        options_considered:
+          - "A: 生成前必须选择 project/series"
+          - "B: 允许为空，生成后再归档（默认）"
+        default_proposal: "B"
+        rationale: "降低初期使用门槛，支持先生成后整理"
+        impact: "资产可能出现未归档状态，需要列表支持筛选/归档入口（需求层）"
+        status: "pending"  # pending|confirmed
+      - id: "D-002"
+        topic: "审核策略默认值"
+        options_considered:
+          - "A: 全人工审核"
+          - "B: 自动通过 + 抽检（默认）"
+        default_proposal: "B"
+        rationale: "降低操作成本，满足闭环；后续可增强自动评分"
+        impact: "需定义抽检入口与失败记录保留（需求层）"
+        status: "pending"
+      - id: "D-003"
+        topic: "批处理范围（需求层）"
+        options_considered:
+          - "A: 仅资产批量删除"
+          - "B: 资产/运行/导出均支持批处理（默认）"
+        default_proposal: "B"
+        rationale: "匹配高频操作与效率诉求"
+        impact: "UI需提供批量选择与批量动作入口（实现由ARCH/DEV决定）"
+        status: "pending"
+      - id: "D-004"
+        topic: "NFR量化策略"
+        options_considered:
+          - "A: 冻结前必须提供硬指标"
+          - "B: 能量化则量化，否则给默认阈值或写明assumption（默认）"
+        default_proposal: "B"
+        rationale: "避免冻结被不必要阻塞，同时保留可验证目标"
+        impact: "窗口4验证时以默认阈值/假设作为基线"
+        status: "pending"
+
+    non_functional_requirements:
+      observability:
+        must_have:
+          - id: "NFR-OBS-001"
+            requirement: "每次用户发起的关键动作（生成/审核/导出/删除）必须可追踪与可审计（概念层）"
+            quantification_status: "not_applicable"
+            default_or_target: "must_have"
+          - id: "NFR-OBS-002"
+            requirement: "必须存在健康检查能力（/health 概念存在；具体响应键由ARCH锁定）"
+            quantification_status: "not_applicable"
+            default_or_target: "must_have"
+          - id: "NFR-OBS-003"
+            requirement: "请求追踪ID概念必须存在（header具体名由ARCH定义）"
+            quantification_status: "not_applicable"
+            default_or_target: "must_have"
+      performance:
+        targets:
+          - id: "NFR-PERF-001"
+            scenario: "资产库列表加载（普通规模）"
+            quantification_status: "default_threshold"
+            default_or_target: "默认阈值：≤2s（如无更明确要求）"
+          - id: "NFR-PERF-002"
+            scenario: "生成任务状态刷新"
+            quantification_status: "assumption"
+            default_or_target: "假设：用户可接受秒级刷新；具体由ARCH/实现决定"
+      reliability:
+        expectations:
+          - id: "NFR-REL-001"
+            requirement: "生成失败可重试且保留失败记录"
+            quantification_status: "not_applicable"
+            default_or_target: "must_have"
+          - id: "NFR-REL-002"
+            requirement: "证据链记录不可静默覆盖；复用产生新运行/新版本（概念层）"
+            quantification_status: "not_applicable"
+            default_or_target: "must_have"
+      security:
+        assumptions:
+          - id: "NFR-SEC-001"
+            assumption: "默认单机单用户，不实现复杂鉴权；如需变更走CR-L1"
+      usability:
+        requirements:
+          - id: "NFR-UX-001"
+            requirement: "核心任务（生成并查看结果）交互层级≤3"
+            quantification_status: "target"
+            default_or_target: "≤3层页面/弹层"
+          - id: "NFR-UX-002"
+            requirement: "高频操作支持批处理"
+            quantification_status: "not_applicable"
+            default_or_target: "must_have"
+      compatibility:
+        assumptions:
+          - id: "NFR-COMP-001"
+            assumption: "目标环境：web/desktop；具体浏览器/OS清单由ARCH确定"
+      rollback_and_change:
+        principles:
+          - id: "NFR-CHG-001"
+            principle: "冻结后需求变更必须版本化并可回退到旧版spec"
+            quantification_status: "not_applicable"
+            default_or_target: "must_have"
+
+    constraints:
+      must_not:
+        - id: "CN-001"
+          statement: "不得在需求阶段锁定数据库表结构、API字段名、具体库版本"
+        - id: "CN-002"
+          statement: "不得输出代码或文件修改命令"
+      design_principles:
+        - id: "DP-001"
+          statement: "契约驱动：先验收与范围，后实现"
+        - id: "DP-002"
+          statement: "可追溯：S↔WF↔AC↔D 形成闭环"
+        - id: "DP-003"
+          statement: "可演进：未来扩展记录为future，不进入本期承诺"
+
+    assumptions:
+      - id: "A-001"
+        statement: "单机单用户"
+      - id: "A-002"
+        statement: "初期以MVP为主，后续可通过CR演进"
+      - id: "A-003"
+        statement: "生成能力通过可扩展provider/workflow承载，但需求阶段不锁定实现"
+
+    risks:
+      - id: "R-001"
+        description: "角色脸一致/质量审核的量化口径不清导致验收争议"
+        probability: "medium"
+        impact: "high"
+        mitigation: "在Phase 2中将一致性/质量审核至少定义为可执行的检查清单；必要时引入默认阈值并记录decisions"
+      - id: "R-002"
+        description: "导出目录包的“可浏览/预览”范围不清导致实现偏差"
+        probability: "medium"
+        impact: "medium"
+        mitigation: "在验收中明确最低可预览能力（例如：目录结构+缩略图/播放器入口的需求层定义）"
+
+    open_questions:
+      - id: "Q-001"
+        question: "导出目录包的最低预览能力要求是什么（例如：只需文件浏览，还是需要内置播放/缩略图）？"
+        owner: "User"
+      - id: "Q-002"
+        question: "质量审核的最小检查项清单是什么（例如：清晰度、风格一致、角色脸一致等）？"
+        owner: "User"
+      - id: "Q-003"
+        question: "项目/系列在你的工作流中是否通常先确定，还是经常后整理？"
+        owner: "User"
+
+    traceability:
+      scope_to_workflows:
+        - scope_id: "S1"
+          workflow_ids: ["WF2"]
+        - scope_id: "S2"
+          workflow_ids: ["WF1"]
+        - scope_id: "S3"
+          workflow_ids: ["WF1", "WF2"]
+        - scope_id: "S4"
+          workflow_ids: ["WF3"]
+      scope_to_acceptance:
+        - scope_id: "S1"
+          acceptance_ids: ["AC-001", "AC-002"]
+        - scope_id: "S2"
+          acceptance_ids: ["AC-003"]
+        - scope_id: "S3"
+          acceptance_ids: ["AC-002", "AC-003"]
+        - scope_id: "S4"
+          acceptance_ids: ["AC-005"]
+      decisions_affecting_scope:
+        - decision_id: "D-001"
+          related_scope_ids: ["S1", "S2"]
+        - decision_id: "D-002"
+          related_scope_ids: ["S3"]
+        - decision_id: "D-003"
+          related_scope_ids: ["S1", "S4"]
+
+  handoff_summary:
+    spec_version: "1.0.0"
+    status: "draft"
+    core_value: "<同上core_value>"
+    target_users: "<同上target_users>"
+    key_differentiators:
+      - "<同上>"
+    scope_in_ids: ["S1", "S2", "S3", "S4"]
+    scope_out_ids: ["O1", "O2", "O3"]
+    top_workflow_ids: ["WF1", "WF2"]
+    top_acceptance_ids: ["AC-001", "AC-002", "AC-003"]
+    key_decisions_pending: ["D-001", "D-002", "D-003", "D-004"]
+    non_negotiables_from_user:
+      - "浅层交互"
+      - "批处理"
+      - "可追溯证据链"
