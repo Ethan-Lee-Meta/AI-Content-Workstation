@@ -246,3 +246,48 @@ Expected signals:
 == gate_ac_004: passed ==
 ```
 
+
+
+### Gate key parameters (latest run)
+
+- Evidence run at (UTC): `2025-12-30T12:05:27Z`
+- Branch: `dev/batch3-ui-ac003-generate`
+- HEAD: `9409924ccb24d9768c8ff8aeac391da507bef73f`
+
+#### Routes (gate_web_routes)
+- [ok] `/`
+- [ok] `/library`
+- [ok] `/assets/test-asset`
+- [ok] `/generate`
+- [ok] `/projects`
+- [ok] `/projects/test-project`
+- [ok] `/series`
+- [ok] `/series/test-series`
+- [ok] `/shots`
+- [ok] `/shots/test-shot`
+
+#### AC-001 (library overview)
+- Pagination shape ok: `True`  (expects items[] + page{limit,offset,total,has_more})
+- Library markers ok: `True`  (FiltersBar/AssetGrid/BulkActionBar)
+
+#### AC-002 (asset detail)
+- picked asset_id: `5FBA8D5F46254AF9819D359F83726558`
+- non-existent asset error envelope ok: `True`  (error/message/request_id/details)
+- detail panel markers ok: `True`
+
+#### AC-003 (generate runs)
+- type `t2i`: run_id `01KDQJBHQPG7DKPJBGTD4QQJEB` ; request_id `a71d7a12-c74e-4e62-89a6-df4b52fb05c3`
+- type `i2i`: run_id `01KDQJBHWCYK741FSZ1AR3MTYN` ; request_id `d97aa873-77cf-49cf-9752-f3536a0d0cf7`
+- type `t2v`: run_id `01KDQJBJ184NYQ28JK3G60BS35` ; request_id `050e2197-05d2-4986-a797-be3741f1af00`
+- type `i2v`: run_id `01KDQJBJ69B81323XC9M1Q0XWF` ; request_id `fad5e45d-e926-4958-a871-007b24a04837`
+
+#### AC-004 (review override)
+- override missing reason request_id: `478366c6-3a0e-4adb-8d87-4c483b3b11a7`
+- Review UI markers wired: `True`
+
+#### Raw logs (local paths)
+- `tmp/_out_gate_web_routes.txt`
+- `tmp/_out_gate_ac_001.txt`
+- `tmp/_out_gate_ac_002.txt`
+- `tmp/_out_gate_ac_003.txt`
+- `tmp/_out_gate_ac_004.txt`
