@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getAsset, pickPreviewUrl } from "../../_lib/api";
+import ReviewPanelClient from "./ReviewPanelClient";
 
 function normalizeId(a, fallback) {
   return String(a?.asset_id || a?.id || a?.uuid || fallback || "unknown");
@@ -149,14 +150,14 @@ function ActionsPanel({ assetId }) {
   );
 }
 
-function ReviewPanelPlaceholder() {
+function ReviewPanelPlaceholder({ assetId }) {
   return (
     <section className="card" style={{ gridColumn: "span 12" }} data-testid="review-panel">
-      <h2 className="cardTitle">ReviewPanel</h2>
-      <p className="cardHint">AC-004 will load reviews + override. P0 placeholder.</p>
-      <div className="badge">No reviews loaded</div>
+      <ReviewPanelClient assetId={assetId} />
     </section>
   );
+}
+
 }
 
 export default function AssetDetailClient({ assetId }) {
@@ -216,7 +217,7 @@ export default function AssetDetailClient({ assetId }) {
       <TraceabilityPanel asset={asset} />
       <ActionsPanel assetId={assetId} />
 
-      <ReviewPanelPlaceholder />
+      <ReviewPanelPlaceholder assetId={assetId} />
     </div>
   );
 }
