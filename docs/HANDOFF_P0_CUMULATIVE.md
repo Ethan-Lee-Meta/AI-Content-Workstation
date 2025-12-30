@@ -291,3 +291,37 @@ Expected signals:
 - `tmp/_out_gate_ac_002.txt`
 - `tmp/_out_gate_ac_003.txt`
 - `tmp/_out_gate_ac_004.txt`
+
+---
+
+## BATCH-4 (PHASE-P0 / infra_runtime) — Integration & E2E Gates (Happy Path)
+
+- Branch: `dev/batch3-ui-ac003-generate`
+- HEAD: `3ae385c9c6df45586afcb412dab20cee01aba931`
+- Evidence: `docs/EVIDENCE_P0_FULL.md`
+- Sample request_id: `6ff11baf-be9d-44c7-a2d7-d11d3991061c`
+
+### Scope delivered (delta)
+- Freeze a single **P0 full regression** entrypoint:
+  - `bash scripts/gate_all.sh --mode=full`
+  - (optional) `bash scripts/gate_all.sh --mode=full --repeat=3`
+- Chain required P0 gates + e2e aggregator and emit auditable evidence:
+  - health_contract_check / request_id_propagation_check / openapi_reachable
+  - api_smoke / web_routes
+  - ac_001..ac_004
+  - e2e_happy_path (evidence-chain aggregator)
+
+### Verification (how to re-run)
+```bash
+bash scripts/gate_all.sh --mode=full
+bash scripts/gate_all.sh --mode=full --repeat=3
+```
+
+### Expected signals (sample)
+- `[ok] /health keys present: status, version, db, storage, last_error_summary`
+- `[ok] header present: X-Request-Id (non-empty)`
+- `[ok] /openapi.json reachable`
+- `[ok] AC-001 passed` ... `[ok] AC-004 passed`
+- `[ok] e2e happy path passed`
+- `[ok] gate_all: passed`
+
