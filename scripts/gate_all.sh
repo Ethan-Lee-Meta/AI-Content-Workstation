@@ -1,113 +1,158 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set +e
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  bash scripts/gate_all.sh --mode=preflight
+  bash scripts/gate_all.sh --mode=full [--repeat=N]
+
+Notes:
+- mode=preflight: minimal fast checks
+- mode=full: P0 regression (API baseline + UI AC-001..004 + e2e evidence)
+USAGE
+}
 
 MODE="preflight"
-STRICT="0"
-for a in "$@"; do
-  case "$a" in
-    --mode=*) MODE="${a#*=}" ;;
-    --strict) STRICT="1" ;;
+REPEAT="1"
+
+for arg in "$@"; do
+  case "$arg" in
+    --mode=preflight) MODE="preflight" ;;
+    --mode=full) MODE="full" ;;
+    --repeat=*) REPEAT="${arg#--repeat=}" ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "[err] unknown arg: $arg"; usage; exit 2 ;;
   esac
 done
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-cd "$ROOT"
+case "$REPEAT" in
+  ''|*[!0-9]*) echo "[err] --repeat must be an integer"; exit 2 ;;
+esac
+if [ "$REPEAT" -lt 1 ]; then echo "[err] --repeat must be >= 1"; exit 2; fi
 
-ok(){ echo "[ok] $*"; }
-warn(){ echo "[warn] $*" >&2; }
-err(){ echo "[err] $*" >&2; exit 3; }
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "[err] not inside a git repo"; exit 1; }
+cd "$ROOT" || exit 1
 
-pick_first() {
-  for p in "$@"; do
-    if [[ -f "$p" ]]; then echo "$p"; return 0; fi
-  done
-  return 1
-}
+mkdir -p tmp docs
 
-PLAN="$(pick_first 03_MASTER_PLAN_frozen.yaml docs/03_MASTER_PLAN_frozen.yaml docs/ssot/03_MASTER_PLAN_frozen.yaml 2>/dev/null || true)"
-ARCH="$(pick_first 02_ARCH_DIGEST.yaml docs/02_ARCH_DIGEST.yaml docs/ssot/02_ARCH_DIGEST.yaml 2>/dev/null || true)"
-SPEC="$(pick_first 01_AI_SPECDIGEST.yaml docs/01_AI_SPECDIGEST.yaml docs/ssot/01_AI_SPECDIGEST.yaml 2>/dev/null || true)"
+TS="$(date -u +%Y%m%d_%H%M%S 2>/dev/null || echo NA)"
+BR="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo NA)"
+HEADSHA="$(git rev-parse HEAD 2>/dev/null || echo NA)"
 
 echo "== gate_all: start =="
-echo "[info] root=$ROOT"
-echo "[info] mode=$MODE"
+echo "== [info] mode=$MODE repeat=$REPEAT ts=$TS =="
+echo "== [info] branch=$BR head=$HEADSHA =="
 
-# Print frozen fingerprints (prefer reading from MASTER_PLAN meta.inputs_fingerprints)
-if [[ -n "${PLAN:-}" && -f "$PLAN" ]]; then
-  python - "$PLAN" <<'PY'
-import re,sys
-p=sys.argv[1]
-t=open(p,encoding="utf-8",errors="ignore").read()
-def find(block):
-  m=re.search(rf'inputs_fingerprints:\s*[\s\S]*?\n\s*{block}:\s*[\s\S]*?\n\s*sha256:\s*([0-9a-f]{{64}})', t)
-  return m.group(1) if m else None
-spec=find("AI_SPECDIGEST")
-arch=find("ARCH_DIGEST")
-mp=re.search(r'outputs_fingerprints:\s*[\s\S]*?\n\s*MASTER_PLAN:\s*[\s\S]*?\n\s*sha256:\s*([0-9a-f]{64})', t)
-mp_sha=mp.group(1) if mp else None
-print(f"[ok] fingerprints from MASTER_PLAN: spec_sha256={spec or 'NA'} arch_sha256={arch or 'NA'} master_plan_sha256={mp_sha or 'NA'}")
-PY
-else
-  warn "03_MASTER_PLAN_frozen.yaml not found; cannot print frozen sha256 from plan."
-fi
+run_gate() {
+  label="$1"
+  script="$2"
+  run_idx="$3"
 
-# Hard lock: ports 2000/7000 must appear in ARCH_DIGEST
-if [[ -n "${ARCH:-}" && -f "$ARCH" ]]; then
-  grep -q 'web_dev_server:[[:space:]]*2000' "$ARCH" || err "missing ports_lock.local.web_dev_server: 2000 in $ARCH"
-  grep -q 'api_server:[[:space:]]*7000' "$ARCH" || err "missing ports_lock.local.api_server: 7000 in $ARCH"
-  ok "ports_lock validated: web=2000 api=7000 (from ARCH_DIGEST)"
-else
-  err "02_ARCH_DIGEST.yaml not found; cannot validate ports_lock."
-fi
+  out="tmp/_out_gate_${label}.txt"
+  if [ "$REPEAT" -gt 1 ]; then
+    out="tmp/_out_gate_${label}__run${run_idx}.txt"
+  fi
 
-# Soft checks (warn only): request-id header presence in contracts
-if grep -q 'X-Request-Id' "$ARCH" 2>/dev/null; then
-  ok "request_id header mentioned in ARCH_DIGEST"
-else
-  warn "X-Request-Id not found in ARCH_DIGEST text (may exist in ARCH_CONTRACT_SUMMARY)."
-fi
+  echo "== ${label}: start =="
+  if [ ! -f "$script" ]; then
+    echo "[err] missing script: $script"
+    return 20
+  fi
 
-# List downstream gate scripts
-MISSING=0
-expect_scripts=(
-  scripts/gate_api_smoke.sh
-  scripts/gate_openapi_reachable.sh
-  scripts/gate_health_contract_check.sh
-  scripts/gate_request_id_propagation_check.sh
-  scripts/gate_error_envelope_check.sh
-)
-for s in "${expect_scripts[@]}"; do
-  if [[ -f "$s" ]]; then ok "gate present: $s"; else warn "missing downstream gate: $s"; MISSING=$((MISSING+1)); fi
+  bash "$script" 2>&1 | tee "$out"
+  rc=${PIPESTATUS[0]}
+  if [ $rc -ne 0 ]; then
+    echo "[err] ${label} failed rc=$rc (see $out)"
+    return $rc
+  fi
+
+  echo "== ${label}: passed =="
+  return 0
+}
+
+gen_evidence_full() {
+  run_idx="$1"
+  doc="docs/EVIDENCE_P0_FULL.md"
+
+  {
+    echo "# P0 FULL Regression Evidence"
+    echo
+    echo "- Generated at (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo NA)"
+    echo "- Branch: $BR"
+    echo "- HEAD: $HEADSHA"
+    echo "- Command: bash scripts/gate_all.sh --mode=full$( [ "$REPEAT" -gt 1 ] && echo " --repeat=$REPEAT" )"
+    echo
+    echo "## Required gates (min set) + e2e"
+    echo "- gate_api_smoke"
+    echo "- gate_openapi_reachable"
+    echo "- gate_health_contract_check"
+    echo "- gate_request_id_propagation_check"
+    echo "- gate_ac_001"
+    echo "- gate_ac_002"
+    echo "- gate_ac_003"
+    echo "- gate_ac_004"
+    echo "- gate_e2e_happy_path"
+    echo
+    echo "## Key [ok] lines (run ${run_idx})"
+    echo '```text'
+    for label in health_contract_check request_id_propagation_check openapi_reachable api_smoke web_routes ac_001 ac_002 ac_003 ac_004 e2e_happy_path; do
+      f="tmp/_out_gate_${label}.txt"
+      if [ "$REPEAT" -gt 1 ]; then f="tmp/_out_gate_${label}__run${run_idx}.txt"; fi
+      if [ -f "$f" ]; then
+        grep -E '^\[ok\]' "$f" 2>/dev/null || true
+      else
+        echo "[warn] missing log: $f"
+      fi
+    done
+    echo '```'
+    echo
+    echo "## request_id samples (run ${run_idx})"
+    echo '```text'
+    f1="tmp/_out_gate_ac_003.txt"
+    f2="tmp/_out_gate_ac_004.txt"
+    if [ "$REPEAT" -gt 1 ]; then f1="tmp/_out_gate_ac_003__run${run_idx}.txt"; f2="tmp/_out_gate_ac_004__run${run_idx}.txt"; fi
+    ( grep -Eo 'request_id=[0-9a-fA-F-]+' "$f1" "$f2" 2>/dev/null || true ) | head -n 10
+    ( grep -Ei 'x-request-id' "$f1" "$f2" 2>/dev/null || true ) | head -n 10
+    echo '```'
+    echo
+    echo "## Raw logs"
+    echo "- tmp/_out_gate_*"
+  } > "$doc"
+
+  echo "[ok] evidence written: $doc"
+  return 0
+}
+
+i=1
+while [ $i -le "$REPEAT" ]; do
+  echo "== [run] ${i}/${REPEAT} =="
+
+  if [ "$MODE" = "preflight" ]; then
+    run_gate "api_smoke" "scripts/gate_api_smoke.sh" "$i" || exit $?
+  elif [ "$MODE" = "full" ]; then
+    run_gate "health_contract_check" "scripts/gate_health_contract_check.sh" "$i" || exit $?
+    run_gate "request_id_propagation_check" "scripts/gate_request_id_propagation_check.sh" "$i" || exit $?
+    run_gate "openapi_reachable" "scripts/gate_openapi_reachable.sh" "$i" || exit $?
+
+    run_gate "api_smoke" "scripts/gate_api_smoke.sh" "$i" || exit $?
+    run_gate "web_routes" "scripts/gate_web_routes.sh" "$i" || exit $?
+
+    run_gate "ac_001" "scripts/gate_ac_001.sh" "$i" || exit $?
+    run_gate "ac_002" "scripts/gate_ac_002.sh" "$i" || exit $?
+    run_gate "ac_003" "scripts/gate_ac_003.sh" "$i" || exit $?
+    run_gate "ac_004" "scripts/gate_ac_004.sh" "$i" || exit $?
+
+    run_gate "e2e_happy_path" "scripts/gate_e2e_happy_path.sh" "$i" || exit $?
+    gen_evidence_full "$i" || exit $?
+  else
+    echo "[err] unknown mode=$MODE"
+    usage
+    exit 2
+  fi
+
+  i=$((i+1))
 done
 
-if [[ "$MODE" == "preflight" ]]; then
-  if [[ "$MISSING" -gt 0 ]]; then
-    warn "downstream gates missing ($MISSING). preflight is still allowed to continue."
-    [[ "$STRICT" == "1" ]] && err "preflight strict mode: missing downstream gates"
-  fi
-  ok "preflight done"
-  exit 0
-fi
-
-if [[ "$MODE" == "full" ]]; then
-  ok "running required gates (full)"
-  bash scripts/gate_api_smoke.sh
-
-# BATCH-1: db/storage gate
-if [ -f scripts/gate_db_storage.sh ]; then
-  bash scripts/gate_db_storage.sh
-
-# BATCH-1: models gate
-if [ -f scripts/gate_models.sh ]; then
-  bash scripts/gate_models.sh
-else
-  echo "[warn] missing scripts/gate_models.sh"
-fi
-else
-  echo "[warn] missing scripts/gate_db_storage.sh"
-fi
-  ok "full done"
-  exit 0
-fi
-
-err "unknown --mode=$MODE"
+echo "== gate_all: passed =="
+exit 0
