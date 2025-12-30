@@ -145,3 +145,104 @@ These rules exist to prevent copy errors, terminal crashes, and accidental forbi
   - immutable evidence chain constraints (append-only where applicable)
 - Extend gates first, then expand API surface.
 - Wire UI only after API contracts remain stable across at least one full gate cycle.
+
+---
+
+## BATCH-3 (PHASE-P0 / ui_routes) — UI Vertical Slice (AC-001..AC-004)
+
+- Branch: `dev/batch3-ui-ac003-generate`
+- Feature commit (BATCH-3): `830a46d1fa10920639a4019ecdc25f914dfd47a6`
+- Appended at (UTC): `2025-12-30T11:54:30Z`
+
+### Scope delivered
+- App Shell + required routes skeleton (Next.js App Router under `apps/web/app`)
+- AC-001: Library overview lists image+video assets with pagination; opens Asset Detail
+- AC-002: Asset detail shows required panels markers (Preview/Metadata/Traceability/Actions/Review)
+- AC-003: Generate supports 4 input types (t2i/i2i/t2v/i2v) submit run; refresh status; show results markers
+- AC-004: Review UI shows score/verdict/reasons and supports override; missing reason triggers error envelope w/ `request_id`
+
+### Implemented UI endpoints & contract behaviors
+- Proxy: `/api_proxy/[...path]` forwards requests to API server `127.0.0.1:7000`
+- Pagination contract (UI expects): `{ items: [...], page: { limit, offset, total, has_more } }`
+- Error envelope keys required: `error, message, request_id, details`
+- UI surfaces `request_id` in Review panel (prefers body `request_id`, then response header `x-request-id`, else generated request id)
+
+### Gates (P0)
+Run from repo root:
+
+```bash
+bash scripts/gate_api_smoke.sh
+bash scripts/gate_web_routes.sh
+bash scripts/gate_ac_001.sh
+bash scripts/gate_ac_002.sh
+bash scripts/gate_ac_003.sh
+bash scripts/gate_ac_004.sh
+```
+
+Expected signals:
+- `[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)`
+- `[ok] /library source contains required sections markers (FiltersBar/AssetGrid/BulkActionBar)`
+- `[ok] asset detail source contains required panel markers`
+- `[ok] create run for each type; status refreshed`
+- `[ok] override missing reason rejected; error envelope ok; request_id=...`
+
+### Files added/updated (key)
+- `apps/web/app/assets/[asset_id]/ReviewPanelClient.js` (AC-004 Review UI, request_id visibility, override behavior)
+- `apps/web/app/assets/[asset_id]/AssetDetailClient.js` (wired ReviewPanelClient; preserves AC-002 markers)
+- `scripts/gate_ac_004.sh` (AC-004 gate: API behavior + stable source markers + web routes baseline)
+
+### Known limitations / risks
+- Review payload composition is **openapi best-effort** (derived from `/api_proxy/openapi.json` when available). If backend `/reviews` schema evolves, field mapping may need updates.
+- Some gate runs may generate artifacts under `tmp/`. If those are tracked in git, consider cleaning strategy via a Change Request (outside `apps/web/**, docs/**, scripts/**` allowlist).
+
+
+### Gate evidence (latest run; extracted [ok] lines)
+
+- Evidence run at (UTC): `2025-12-30T11:59:03Z`
+- Branch: `dev/batch3-ui-ac003-generate`
+- HEAD: `830a46d1fa10920639a4019ecdc25f914dfd47a6`
+
+```text
+== gate_web_routes ==
+[ok] route ok: /
+[ok] route ok: /library
+[ok] route ok: /assets/test-asset
+[ok] route ok: /generate
+[ok] route ok: /projects
+[ok] route ok: /projects/test-project
+[ok] route ok: /series
+[ok] route ok: /series/test-series
+[ok] route ok: /shots
+[ok] route ok: /shots/test-shot
+[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
+
+== gate_ac_001 ==
+[ok] /assets returns items[] + page{limit,offset,total,has_more}
+[ok] /library source contains required sections markers (FiltersBar/AssetGrid/BulkActionBar)
+== gate_ac_001: passed ==
+
+== gate_ac_002 ==
+[ok] picked asset_id=5FBA8D5F46254AF9819D359F83726558
+[ok] /assets/:id returns an object
+[ok] error envelope includes error/message/request_id/details
+[ok] asset detail source contains required panel markers
+== gate_ac_002: passed ==
+
+== gate_ac_003 ==
+[ok] create run: type=t2i run_id=01KDQJ1J2R4TE0TRQHBPM6CEFH request_id=155b18b3-94c0-4c13-8f08-68b3454cea21
+[ok] refresh run: run_id=01KDQJ1J2R4TE0TRQHBPM6CEFH
+[ok] create run: type=i2i run_id=01KDQJ1J80HS5YFV0MTZ7NSGXK request_id=113dda7a-a773-4a0d-a608-05b1bbd1ca92
+[ok] refresh run: run_id=01KDQJ1J80HS5YFV0MTZ7NSGXK
+[ok] create run: type=t2v run_id=01KDQJ1JD47WQXZBB04JZBVG86 request_id=5fc108c8-084e-4617-b775-18eff1f00fc5
+[ok] refresh run: run_id=01KDQJ1JD47WQXZBB04JZBVG86
+[ok] create run: type=i2v run_id=01KDQJ1JJD8DJ8ZEM69E63AWW2 request_id=ea561801-d1b6-421a-9b4d-39ad0e187f5f
+[ok] refresh run: run_id=01KDQJ1JJD8DJ8ZEM69E63AWW2
+[ok] /generate source contains required section markers (InputTypeSelector/PromptEditor/RunQueuePanel/ResultsPanel)
+== gate_ac_003: passed ==
+
+== gate_ac_004 ==
+[ok] override missing reason rejected; error envelope ok; request_id=679de0e7-2393-48cc-9baf-4ffa65b8e578
+[ok] Review UI markers present and wired
+== gate_ac_004: passed ==
+```
+
