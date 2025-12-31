@@ -96,7 +96,7 @@ gen_evidence_full() {
     echo
     echo "## Key [ok] lines (run ${run_idx})"
     echo '```text'
-    for label in health_contract_check request_id_propagation_check openapi_reachable api_smoke web_routes ac_001 ac_002 ac_003 ac_004 e2e_happy_path; do
+    for label in health_contract_check request_id_propagation_check openapi_reachable api_smoke web_routes ac_001 ac_002 ac_003 ac_004 e2e_happy_path shots_api shots_ui; do
       f="tmp/_out_gate_${label}.txt"
       if [ "$REPEAT" -gt 1 ]; then f="tmp/_out_gate_${label}__run${run_idx}.txt"; fi
       if [ -f "$f" ]; then
@@ -146,6 +146,9 @@ while [ $i -le "$REPEAT" ]; do
     run_gate "bulk_actions" "scripts/gate_bulk_actions.sh" "$i" || exit $?
     run_gate "trash_ui" "scripts/gate_trash_ui.sh" "$i" || exit $?
 
+    run_gate "shots_api" "scripts/gate_shots_api.sh" "$i" || exit $?
+    run_gate "shots_ui" "scripts/gate_shots_ui.sh" "$i" || exit $?
+
     run_gate "e2e_happy_path" "scripts/gate_e2e_happy_path.sh" "$i" || exit $?
     gen_evidence_full "$i" || exit $?
   else
@@ -160,8 +163,3 @@ done
 echo "== gate_all: passed =="
 exit 0
 
-# -------------------------
-# P1: shots api contract gate (append-only links semantics)
-# -------------------------
-echo "== gate_all: shots_api =="
-bash scripts/gate_shots_api.sh
