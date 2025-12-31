@@ -1,4 +1,4 @@
-# HANDOFF — P0 Cumulative (Standalone, Single-File) — Updated through BATCH-7
+# HANDOFF — P0 Cumulative (Standalone, Single-File) — Updated through BATCH-8
 
 本文件是**唯一交接产物**（self-contained）。目标：让接手者在**不额外问问题**的情况下，能完成：
 1) 本地启动 API(7000) + Web(2000)；
@@ -140,25 +140,6 @@
 - 可选重复跑 N 次（抖动排查）：
   - `bash scripts/gate_all.sh --mode=full --repeat=3`
 
-### 3.2 gate_all(full) 的执行顺序（精确；用于定位回归失败）
-full 模式依次执行（任何一步失败即停止并返回非 0）：
-1) `gate_health_contract_check`
-2) `gate_request_id_propagation_check`
-3) `gate_openapi_reachable`
-4) `gate_api_smoke`
-5) `gate_provider_adapter`
-6) `gate_web_routes`
-7) `gate_ac_001`
-8) `gate_ac_002`
-9) `gate_ac_003`
-10) `gate_ac_004`
-11) `gate_ac_005`
-12) `gate_bulk_actions`
-13) `gate_trash_ui`
-14) `gate_shots_api`
-15) `gate_shots_ui`
-16) `gate_e2e_happy_path`
-17) 生成证据：`docs/EVIDENCE_P0_FULL.md`
 
 ### 3.3 gate 输出与失败定位（最重要的 runbook）
 - 每个 gate 的完整输出会写入：

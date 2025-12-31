@@ -130,13 +130,13 @@ while [ $i -le "$REPEAT" ]; do
 
   if [ "$MODE" = "preflight" ]; then
     run_gate "api_smoke" "scripts/gate_api_smoke.sh" "$i" || exit $?
-    run_gate "provider_adapter" "scripts/gate_provider_adapter.sh" "$i" || exit $?
   elif [ "$MODE" = "full" ]; then
     run_gate "health_contract_check" "scripts/gate_health_contract_check.sh" "$i" || exit $?
     run_gate "request_id_propagation_check" "scripts/gate_request_id_propagation_check.sh" "$i" || exit $?
     run_gate "openapi_reachable" "scripts/gate_openapi_reachable.sh" "$i" || exit $?
 
     run_gate "api_smoke" "scripts/gate_api_smoke.sh" "$i" || exit $?
+    run_gate "provider_adapter" "scripts/gate_provider_adapter.sh" "$i" || exit $?
     run_gate "web_routes" "scripts/gate_web_routes.sh" "$i" || exit $?
 
     run_gate "ac_001" "scripts/gate_ac_001.sh" "$i" || exit $?

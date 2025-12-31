@@ -1,8 +1,8 @@
 # P0 FULL Regression Evidence
 
-- Generated at (UTC): 2025-12-31T13:24:05Z
+- Generated at (UTC): 2025-12-31T13:41:52Z
 - Branch: dev/batch8-provider-adapter-p1
-- HEAD: b9be994836aface4a8c8a0710f1768a9794d92c2
+- HEAD: 887f984ecc8f59c4c4ddf954fa9366afb8f45bbc
 - Command: bash scripts/gate_all.sh --mode=full
 
 ## Required gates (min set) + e2e
@@ -27,7 +27,16 @@
 [ok] error path header present: X-Request-Id (non-empty)
 [ok] error envelope includes request_id and required keys
 [ok] gate_api_smoke passed
-[warn] missing log: tmp/_out_gate_provider_adapter.txt
+[ok] /openapi.json reachable
+[ok] off -> json ok
+[ok] flag OFF -> POST /runs ok run_id=01KDTA6J47845S0VW3SX7Y345V status=queued
+[ok] flag OFF -> GET ok status=queued result_refs_keys=[]
+[ok] on -> json ok
+[ok] flag ON -> POST /runs ok run_id=01KDTA6KKX8AD2G0AAZCXSB2YX status=succeeded
+[ok] flag ON -> GET ok status=succeeded refs_count=1
+[ok] artifact exists: ./data/storage\runs\01KDTA6KKX8AD2G0AAZCXSB2YX\result.json
+[ok] forced fail -> error_envelope ok request_id=fbef65ec-1b45-4493-b51c-63d5a316fc93 run_id=01KDTA6NS87YA7PV8ZWWWG41ZD
+[ok] forced fail -> GET ok status=failed
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
 [ok] route ok: /library
@@ -73,14 +82,14 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] asset detail source contains required panel markers
 [ok] api reachable: /openapi.json
-[ok] create run: type=t2i run_id=01KDT97N5R77P43JE5HBTWJ3ZV request_id=607d67aa-6f1f-4f58-b3f5-3db801cbdac6
-[ok] refresh run: run_id=01KDT97N5R77P43JE5HBTWJ3ZV
-[ok] create run: type=i2i run_id=01KDT97NC76H8KBCZCMTXBHHYG request_id=0465e976-717d-4831-a993-989d68edceac
-[ok] refresh run: run_id=01KDT97NC76H8KBCZCMTXBHHYG
-[ok] create run: type=t2v run_id=01KDT97NJBBRHN8J4JVXQ7A58F request_id=834273a9-aa94-48aa-9189-a7c66a131257
-[ok] refresh run: run_id=01KDT97NJBBRHN8J4JVXQ7A58F
-[ok] create run: type=i2v run_id=01KDT97NSSQGN930RF06Y8874F request_id=e982e698-0e2f-4f44-9201-8bb5cd91107c
-[ok] refresh run: run_id=01KDT97NSSQGN930RF06Y8874F
+[ok] create run: type=t2i run_id=01KDTA84MV0C54K01NHYZ3DTEG request_id=cc887a21-25bc-41ed-bb52-daf226c81c5f
+[ok] refresh run: run_id=01KDTA84MV0C54K01NHYZ3DTEG
+[ok] create run: type=i2i run_id=01KDTA84W0QFH60WH59G0NK70H request_id=0feedfdd-4d7b-48fb-a8bf-251222879d52
+[ok] refresh run: run_id=01KDTA84W0QFH60WH59G0NK70H
+[ok] create run: type=t2v run_id=01KDTA851V98SB6JENAMW4SYPW request_id=21ae70a7-d0d4-4499-9554-a995942ae413
+[ok] refresh run: run_id=01KDTA851V98SB6JENAMW4SYPW
+[ok] create run: type=i2v run_id=01KDTA8596XH7WQ3A83T5EYXXJ request_id=791c2611-80d6-440a-95c2-89a6968bfde5
+[ok] refresh run: run_id=01KDTA8596XH7WQ3A83T5EYXXJ
 [ok] create run for each type; status refreshed
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
@@ -96,7 +105,7 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] /generate source contains required section markers (InputTypeSelector/PromptEditor/RunQueuePanel/ResultsPanel)
 [ok] api reachable: /openapi.json
-[ok] override missing reason rejected; error envelope ok; request_id=c8c231ef-666a-46c1-9356-eff716aa5021
+[ok] override missing reason rejected; error envelope ok; request_id=28953902-cf50-47b6-b031-62b21e9ee19a
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
 [ok] route ok: /library
@@ -110,7 +119,7 @@
 [ok] route ok: /shots/test-shot
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] Review UI markers present and wired
-[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=607d67aa-6f1f-4f58-b3f5-3db801cbdac6
+[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=cc887a21-25bc-41ed-bb52-daf226c81c5f
 [ok] e2e happy path passed
 [ok] shots list returns items+page with required keys
 [ok] shots detail returns shot + linked_refs summary
@@ -120,17 +129,17 @@
 [ok] /shots renders (http=200)
 [ok] picked shot_id: 00363326BCB248A5B341B04BDF3CE2A6
 [ok] /shots/:shot_id renders (http=200)
-[ok] link created link_id=0295C0C9001F447283430DAF0D7FC7E5
+[ok] link created link_id=9C1FFBB1C0894379AA0D03A7D0659D9E
 [ok] link removed (tombstone semantics)
 ```
 
 ## request_id samples (run 1)
 ```text
-tmp/_out_gate_ac_003.txt:request_id=607d67aa-6f1f-4f58-b3f5-3db801cbdac6
-tmp/_out_gate_ac_003.txt:request_id=0465e976-717d-4831-a993-989d68edceac
-tmp/_out_gate_ac_003.txt:request_id=834273a9-aa94-48aa-9189-a7c66a131257
-tmp/_out_gate_ac_003.txt:request_id=e982e698-0e2f-4f44-9201-8bb5cd91107c
-tmp/_out_gate_ac_004.txt:request_id=c8c231ef-666a-46c1-9356-eff716aa5021
+tmp/_out_gate_ac_003.txt:request_id=cc887a21-25bc-41ed-bb52-daf226c81c5f
+tmp/_out_gate_ac_003.txt:request_id=0feedfdd-4d7b-48fb-a8bf-251222879d52
+tmp/_out_gate_ac_003.txt:request_id=21ae70a7-d0d4-4499-9554-a995942ae413
+tmp/_out_gate_ac_003.txt:request_id=791c2611-80d6-440a-95c2-89a6968bfde5
+tmp/_out_gate_ac_004.txt:request_id=28953902-cf50-47b6-b031-62b21e9ee19a
 ```
 
 ## Raw logs
