@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { listAssets, pickPreviewUrl } from "../_lib/api";
+import { apiFetch, listAssets, pickPreviewUrl } from "../_lib/api";
 
 function int(v, d) {
   const n = Number.parseInt(String(v ?? ""), 10);
@@ -42,6 +42,11 @@ export default function LibraryClient() {
   const [lastRid, setLastRid] = useState("—");
   const [errEnv, setErrEnv] = useState(null);
 
+  // STEP-105: bulk selection + bulk soft delete
+  const [selected, setSelected] = useState({});
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkReport, setBulkReport] = useState(null);
+
   function pushParams(next) {
     const p = new URLSearchParams(sp.toString());
     Object.entries(next).forEach(([k, v]) => {
@@ -49,6 +54,14 @@ export default function LibraryClient() {
       else p.set(k, String(v));
     });
     router.push(`/library?${p.toString()}`);
+  }
+
+  function idOf(a) {
+    return String(a?.asset_id || a?.id || a?.uuid || "unknown");
+  }
+
+  function pickType(a) {
+    return String(a?.type || a?.asset_type || "unknown").toLowerCase();
   }
 
   async function load() {
@@ -80,13 +93,93 @@ export default function LibraryClient() {
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
     return (items || []).filter((a) => {
-      const id = String(a?.asset_id || a?.id || "").toLowerCase();
-      const t = String(a?.type || a?.asset_type || "").toLowerCase();
+      const id = idOf(a).toLowerCase();
+      const t = pickType(a);
       if (type !== "all" && t !== type) return false;
       if (qq && !id.includes(qq)) return false;
       return true;
     });
   }, [items, type, q]);
+
+  const selectedIds = useMemo(() => {
+    return Object.keys(selected || {}).filter((k) => selected[k]);
+  }, [selected]);
+
+  const selectedCount = selectedIds.length;
+
+  function setOneSelected(id, checked) {
+    setSelected((m) => ({ ...(m || {}), [id]: !!checked }));
+  }
+
+  function clearSelection() {
+    setSelected({});
+    setBulkReport(null);
+  }
+
+  function selectAllOnPage() {
+    const next = {};
+    filtered.forEach((a) => {
+      const id = idOf(a);
+      if (id && id !== "unknown") next[id] = true;
+    });
+    setSelected(next);
+    setBulkReport(null);
+  }
+
+  async function bulkSoftDelete() {
+    const ids = selectedIds.slice(0);
+    if (ids.length === 0) return;
+
+    setBulkBusy(true);
+    setBulkReport(null);
+    setErrEnv(null);
+
+    let ok = 0;
+    let fail = 0;
+    let last = "—";
+    const okSet = new Set();
+    let firstFailEnv = null;
+
+    for (const id of ids) {
+      const r = await apiFetch(`/assets/${encodeURIComponent(id)}`, { method: "DELETE" });
+      last = r.request_id || r.error_envelope?.request_id || last;
+
+      if (r.ok) {
+        ok += 1;
+        okSet.add(id);
+      } else {
+        fail += 1;
+        if (!firstFailEnv) firstFailEnv = r.error_envelope || null;
+      }
+    }
+
+    // optimistic remove successes from current list (default list excludes deleted)
+    if (okSet.size > 0) {
+      setItems((prev) => (Array.isArray(prev) ? prev.filter((a) => !okSet.has(idOf(a))) : prev));
+    }
+
+    // keep failed selected for retry; clear if all ok
+    if (fail === 0) setSelected({});
+    else {
+      setSelected((prev) => {
+        const next = {};
+        ids.forEach((id) => {
+          if (!okSet.has(id) && prev?.[id]) next[id] = true;
+        });
+        return next;
+      });
+    }
+
+    setLastRid(last);
+    setBulkReport({ requested: ids.length, ok, fail, last_request_id: last });
+
+    if (firstFailEnv) setErrEnv(firstFailEnv);
+
+    setBulkBusy(false);
+
+    // if all succeeded, refresh from server truth
+    if (fail === 0) load();
+  }
 
   return (
     <div className="grid">
@@ -161,18 +254,29 @@ export default function LibraryClient() {
 
         <div className="grid" style={{ marginTop: 10 }}>
           {filtered.map((a) => {
-            const id = String(a?.asset_id || a?.id || a?.uuid || "unknown");
-            const t = String(a?.type || a?.asset_type || "unknown").toLowerCase();
+            const id = idOf(a);
+            const t = pickType(a);
             const preview = pickPreviewUrl(a);
             const isVideo = t === "video";
+            const checked = !!selected?.[id];
+
             return (
               <div key={id} style={{ gridColumn: "span 4" }}>
                 <div className="card" style={{ padding: 12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{id}</div>
-                      <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
-                        <span className="badge mono">{t || "unknown"}</span>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
+                      <input
+                        data-testid="bulk-item-checkbox"
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => setOneSelected(id, e.target.checked)}
+                        aria-label={`select ${id}`}
+                      />
+                      <div style={{ minWidth: 0 }}>
+                        <div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{id}</div>
+                        <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
+                          <span className="badge mono">{t || "unknown"}</span>
+                        </div>
                       </div>
                     </div>
                     <Link className="btn" href={`/assets/${encodeURIComponent(id)}`} prefetch={false}>Open</Link>
@@ -211,7 +315,34 @@ export default function LibraryClient() {
 
       <section className="card" style={{ gridColumn: "span 12" }} data-testid="bulk-action-bar">
         <h2 className="cardTitle">BulkActionBar</h2>
-        <p className="cardHint">P0 placeholder (selection in later step).</p>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="badge" data-testid="bulk-selected-count">
+            selected: <span className="mono">{String(selectedCount)}</span>
+          </span>
+
+          <button className="btn" data-testid="bulk-select-all" onClick={selectAllOnPage} disabled={bulkBusy || filtered.length === 0}>
+            Select all (this page)
+          </button>
+
+          <button className="btn" data-testid="bulk-clear-selection" onClick={clearSelection} disabled={bulkBusy || selectedCount === 0}>
+            Clear selection
+          </button>
+
+          <button className="btn" data-testid="bulk-soft-delete" onClick={bulkSoftDelete} disabled={bulkBusy || selectedCount === 0}>
+            {bulkBusy ? "Deleting..." : "Soft delete selected"}
+          </button>
+
+          {bulkReport ? (
+            <span className="badge" data-testid="bulk-report">
+              requested: <span className="mono">{String(bulkReport.requested)}</span> • ok: <span className="mono">{String(bulkReport.ok)}</span> • fail: <span className="mono">{String(bulkReport.fail)}</span> • last_request_id: <span className="mono">{String(bulkReport.last_request_id || "—")}</span>
+            </span>
+          ) : null}
+        </div>
+
+        <p className="cardHint" style={{ marginTop: 10 }}>
+          P1: bulk select + bulk soft delete. Failure must show error envelope + request_id (see ErrorPanel).
+        </p>
       </section>
     </div>
   );

@@ -142,6 +142,8 @@ while [ $i -le "$REPEAT" ]; do
     run_gate "ac_002" "scripts/gate_ac_002.sh" "$i" || exit $?
     run_gate "ac_003" "scripts/gate_ac_003.sh" "$i" || exit $?
     run_gate "ac_004" "scripts/gate_ac_004.sh" "$i" || exit $?
+    run_gate "ac_005" "scripts/gate_ac_005.sh" "$i" || exit $?
+    run_gate "bulk_actions" "scripts/gate_bulk_actions.sh" "$i" || exit $?
 
     run_gate "e2e_happy_path" "scripts/gate_e2e_happy_path.sh" "$i" || exit $?
     gen_evidence_full "$i" || exit $?
