@@ -64,10 +64,37 @@ It describes the **current shipped capabilities**, **API surface**, **verificati
 ---
 
 ## 2) What is implemented now (Frontend)
+
 - Frontend code lives under `apps/web/app` (Next.js App Router).
-- Run dev (from repo root):
-  - `cd apps/web && npm i && npm run dev -- --port 2000`
-- Note: UI bulk soft-delete + trash view wiring may still be pending, but backend now provides the required soft-delete + purge loop.
+- Runtime expectations (P0 locks):
+  - Web: `http://127.0.0.1:2000`
+  - API: `http://127.0.0.1:7000` (UI uses same-origin proxy to avoid CORS preflight)
+
+### 2.1 P1 UI additions shipped in BATCH-5
+- AC-005 interaction depth guard:
+  - Core task path “Home → Generate → Result” stays within ≤3 interaction layers (validated by `gate_ac_005`).
+- `/library` (Asset grid + bulk actions):
+  - Asset grid loads via `/api_proxy/assets?...` (browser requests avoid direct `:7000` to prevent OPTIONS/405).
+  - Bulk select + “Soft delete selected” (soft delete via API; list updates to hide deleted by default).
+  - Failures render the unified error envelope (`error,message,request_id,details`) and explicitly display `request_id`.
+- `/trash` (Trash view):
+  - Lists deleted assets using `include_deleted=true`.
+  - “Empty trash” triggers `POST /trash/empty` with a second confirmation.
+  - Success/failure feedback surfaces `request_id` (and audit details if returned).
+- Sidebar navigation:
+  - Adds `Trash` entry pointing to `/trash`.
+- Asset Detail Review UI hardening:
+  - `score` is integer 1–100 (label: `score (1-100)`; input restricted `min=1 max=100 step=1`; client-side coercion).
+  - `kind=override` requires non-empty `reason` (client-side validation prevents avoidable server 400s).
+
+### 2.2 How to run the frontend (dev)
+From repo root:
+
+- `cd apps/web && npm i`
+- `npm run dev -- --port 2000`
+
+Notes:
+- Browser calls should go through `/api_proxy/*` (same-origin). Server-side calls may use `NEXT_PUBLIC_API_BASE_URL` (default `http://127.0.0.1:7000`).
 
 ---
 
@@ -75,13 +102,11 @@ It describes the **current shipped capabilities**, **API surface**, **verificati
 
 Run from repo root (API on `127.0.0.1:7000`):
 
-- `bash scripts/gate_api_p1_caps_strict.sh`
-- `bash scripts/gate_assets_read.sh`
-- `bash scripts/gate_runs_core.sh`
-- `bash scripts/gate_reviews.sh`
-- `bash scripts/gate_trash.sh` (soft delete → include_deleted visible → trash empty purge)
-
----
+- `bash scripts/gate_all.sh --mode=full`          # regression: P0 must stay green
+- `bash scripts/gate_web_routes.sh`              # if present
+- `bash scripts/gate_ac_005.sh`                  # interaction depth ≤ 3
+- `bash scripts/gate_bulk_actions.sh`            # bulk select + bulk soft delete
+- `bash scripts/gate_trash_ui.sh`                # trash list + empty trash confirm
 
 ## 4) How to run backend (Windows Git Bash safe)
 - `./apps/api/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 7000`

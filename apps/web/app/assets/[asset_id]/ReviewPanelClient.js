@@ -1,5 +1,23 @@
 "use client";
 
+function coerceReviewScore(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 1;
+
+  let i;
+  if (n > 0 && n < 1) i = 1;
+  else i = Math.round(n);
+
+  if (i < 1) i = 1;
+  if (i > 100) i = 100;
+  return i;
+}
+
+
+
+
+
+
 import { useEffect, useMemo, useState } from "react";
 
 function safeJsonParse(text) {
@@ -78,7 +96,7 @@ export default function ReviewPanelClient({ assetId }) {
   const [kind, setKind] = useState("manual");
   const [reason, setReason] = useState("");
   const [reasonsText, setReasonsText] = useState("looks good");
-  const [score, setScore] = useState("0.9");
+  const [score, setScore] = useState("1");
   const [verdict, setVerdict] = useState("pass");
 
   const [submitting, setSubmitting] = useState(false);
@@ -195,10 +213,9 @@ export default function ReviewPanelClient({ assetId }) {
         if (schemaInfo.kindField) o[schemaInfo.kindField] = kind;
         else o.kind = kind;
 
-        const sc = Number(score);
-        o[schemaInfo.scoreField] = Number.isFinite(sc) ? sc : 0.9;
-
-        o[schemaInfo.verdictField] = verdict;
+        const sc = coerceReviewScore(score);
+        o[schemaInfo.scoreField] = sc;
+o[schemaInfo.verdictField] = verdict;
 
         o[schemaInfo.reasonsField] = splitReasons(reasonsText);
 
@@ -212,7 +229,7 @@ export default function ReviewPanelClient({ assetId }) {
       return {
         asset_id: assetId,
         kind,
-        score: Number(score) || 0.9,
+        score: coerceReviewScore(score),
         verdict,
         reasons: splitReasons(reasonsText),
         reason,
@@ -220,7 +237,49 @@ export default function ReviewPanelClient({ assetId }) {
     })();
 
     const reqId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
-    const res = await fetch("/api_proxy/reviews", {
+      // override requires non-empty reason (client-side)
+      if (String(kind) === "override" && !String(reason || "").trim()) {
+        setLastRequestId(reqId);
+        setLast({
+          ok: false,
+          request_id: reqId,
+          body: {
+            error: "validation_error",
+            message: "override requires reason",
+            request_id: reqId,
+            details: { field: "reason" }
+          }
+        });
+        setSubmitting(false);
+        return;
+      }
+
+    // client-side score validation (0..1 -> 0..100 int)
+    const sf = (schemaInfo && schemaInfo.scoreField) ? schemaInfo.scoreField : "score";
+    if (payload[sf] === null || typeof payload[sf] === "undefined") {
+      const msg = "score must be an integer 0..100 (or a float 0..1 which will be converted to 0..100).";
+      setLast({
+        ok: false,
+        request_id: lastRequestId || "—",
+        body: {
+          error: "validation_error",
+          message: msg,
+          request_id: lastRequestId || "—",
+          details: { field: sf, input: score }
+        }
+      });
+      setSubmitting(false);
+      return;
+    }
+
+      // normalize score to integer in [1..100] (API requires integer)
+      if (payload && Object.prototype.hasOwnProperty.call(payload, sf)) {
+        payload[sf] = coerceReviewScore(payload[sf]);
+      } else if (payload) {
+        payload[sf] = coerceReviewScore(score);
+      }
+
+const res = await fetch("/api_proxy/reviews", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -270,8 +329,8 @@ export default function ReviewPanelClient({ assetId }) {
         </label>
 
         <label style={{ display: "grid", gap: 4 }}>
-          <span className="cardHint">score</span>
-          <input value={score} onChange={(e) => setScore(e.target.value)} />
+          <span className="cardHint">score (1-100)</span>
+          <input type="number" value={score} min="1" max="100" step="1" inputMode="numeric" onChange={(e) => { const v = e.target.value; if (v === "") { setScore(""); return; } const n = Number(v); if (!Number.isFinite(n)) return; let i; if (n > 0 && n < 1) i = 1; else i = Math.round(n); if (i < 1) i = 1; if (i > 100) i = 100; setScore(String(i)); }} />
         </label>
 
         <label style={{ display: "grid", gap: 4 }}>
