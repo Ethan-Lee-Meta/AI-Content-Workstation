@@ -9,9 +9,9 @@ It describes the **current shipped capabilities**, **API surface**, **verificati
 
 - Repo: `AI-Content-Workstation`
 - Branch (at generation): `dev/batch5-ui-p1`
-- HEAD (at generation): `08149c3a348f1d0dc4e8ac0ce74753e2a58e3c49`
-- Generated (UTC): `2025-12-31T04:35:24Z`
-- Stable locator (tag): `handoff-p0-cumulative-20251231_043524`  (created & pushed by the finalize script)
+- HEAD (at generation): `0a066f9663c9ad8b90f8078bbda84c3c2d37113e`
+- Generated (UTC): `2025-12-31T05:59:22Z`
+- Stable locator (tag): `handoff-p0-cumulative-20251231_055922`  (created & pushed by the finalize script)
 
 ### Fixed runtime expectations (P0 locks)
 - Backend: FastAPI on `127.0.0.1:7000`
