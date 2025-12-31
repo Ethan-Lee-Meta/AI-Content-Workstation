@@ -1,8 +1,8 @@
 # P0 FULL Regression Evidence
 
-- Generated at (UTC): 2025-12-31T05:48:11Z
-- Branch: dev/batch5-ui-p1
-- HEAD: b2b5d55147a8dee29e5a26fa5f926dcca470d63d
+- Generated at (UTC): 2025-12-31T13:24:05Z
+- Branch: dev/batch8-provider-adapter-p1
+- HEAD: b9be994836aface4a8c8a0710f1768a9794d92c2
 - Command: bash scripts/gate_all.sh --mode=full
 
 ## Required gates (min set) + e2e
@@ -27,6 +27,7 @@
 [ok] error path header present: X-Request-Id (non-empty)
 [ok] error envelope includes request_id and required keys
 [ok] gate_api_smoke passed
+[warn] missing log: tmp/_out_gate_provider_adapter.txt
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
 [ok] route ok: /library
@@ -55,7 +56,7 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] /library source contains required sections markers (FiltersBar/AssetGrid/BulkActionBar)
 [ok] api reachable: /openapi.json
-[ok] picked asset_id=E8307BDFB7544A658CFC3BF9B5A71516
+[ok] picked asset_id=AACADF2B93B344EE93AF656AB5EBE57D
 [ok] /assets/:id returns an object
 [ok] error envelope includes error/message/request_id/details
 [ok] server ready (http://127.0.0.1:2000)
@@ -72,14 +73,14 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] asset detail source contains required panel markers
 [ok] api reachable: /openapi.json
-[ok] create run: type=t2i run_id=01KDSF5AJ08CJH1SCNQBZ40HP4 request_id=c65e1316-2bea-48c0-9687-f1284becf82c
-[ok] refresh run: run_id=01KDSF5AJ08CJH1SCNQBZ40HP4
-[ok] create run: type=i2i run_id=01KDSF5AQFWDSHNT8TR04XV746 request_id=c681be62-286b-447b-bd26-ec2f8e2d16d7
-[ok] refresh run: run_id=01KDSF5AQFWDSHNT8TR04XV746
-[ok] create run: type=t2v run_id=01KDSF5AZR515TWBHDMSFBGJJE request_id=a7878eff-2b13-4828-9f27-79df76dfe481
-[ok] refresh run: run_id=01KDSF5AZR515TWBHDMSFBGJJE
-[ok] create run: type=i2v run_id=01KDSF5B5WTTBWJKYPD6CRV879 request_id=9b640d72-339e-4c0d-8799-fb074fe46ca6
-[ok] refresh run: run_id=01KDSF5B5WTTBWJKYPD6CRV879
+[ok] create run: type=t2i run_id=01KDT97N5R77P43JE5HBTWJ3ZV request_id=607d67aa-6f1f-4f58-b3f5-3db801cbdac6
+[ok] refresh run: run_id=01KDT97N5R77P43JE5HBTWJ3ZV
+[ok] create run: type=i2i run_id=01KDT97NC76H8KBCZCMTXBHHYG request_id=0465e976-717d-4831-a993-989d68edceac
+[ok] refresh run: run_id=01KDT97NC76H8KBCZCMTXBHHYG
+[ok] create run: type=t2v run_id=01KDT97NJBBRHN8J4JVXQ7A58F request_id=834273a9-aa94-48aa-9189-a7c66a131257
+[ok] refresh run: run_id=01KDT97NJBBRHN8J4JVXQ7A58F
+[ok] create run: type=i2v run_id=01KDT97NSSQGN930RF06Y8874F request_id=e982e698-0e2f-4f44-9201-8bb5cd91107c
+[ok] refresh run: run_id=01KDT97NSSQGN930RF06Y8874F
 [ok] create run for each type; status refreshed
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
@@ -95,7 +96,7 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] /generate source contains required section markers (InputTypeSelector/PromptEditor/RunQueuePanel/ResultsPanel)
 [ok] api reachable: /openapi.json
-[ok] override missing reason rejected; error envelope ok; request_id=64aa962d-d969-49a7-81cf-b9a68414eed4
+[ok] override missing reason rejected; error envelope ok; request_id=c8c231ef-666a-46c1-9356-eff716aa5021
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
 [ok] route ok: /library
@@ -109,17 +110,27 @@
 [ok] route ok: /shots/test-shot
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] Review UI markers present and wired
-[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=c65e1316-2bea-48c0-9687-f1284becf82c
+[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=607d67aa-6f1f-4f58-b3f5-3db801cbdac6
 [ok] e2e happy path passed
+[ok] shots list returns items+page with required keys
+[ok] shots detail returns shot + linked_refs summary
+[ok] creating link works and appears in linked_refs
+[ok] deleting link uses tombstone semantics and effective view is updated
+[ok] /openapi.json reachable
+[ok] /shots renders (http=200)
+[ok] picked shot_id: 00363326BCB248A5B341B04BDF3CE2A6
+[ok] /shots/:shot_id renders (http=200)
+[ok] link created link_id=0295C0C9001F447283430DAF0D7FC7E5
+[ok] link removed (tombstone semantics)
 ```
 
 ## request_id samples (run 1)
 ```text
-tmp/_out_gate_ac_003.txt:request_id=c65e1316-2bea-48c0-9687-f1284becf82c
-tmp/_out_gate_ac_003.txt:request_id=c681be62-286b-447b-bd26-ec2f8e2d16d7
-tmp/_out_gate_ac_003.txt:request_id=a7878eff-2b13-4828-9f27-79df76dfe481
-tmp/_out_gate_ac_003.txt:request_id=9b640d72-339e-4c0d-8799-fb074fe46ca6
-tmp/_out_gate_ac_004.txt:request_id=64aa962d-d969-49a7-81cf-b9a68414eed4
+tmp/_out_gate_ac_003.txt:request_id=607d67aa-6f1f-4f58-b3f5-3db801cbdac6
+tmp/_out_gate_ac_003.txt:request_id=0465e976-717d-4831-a993-989d68edceac
+tmp/_out_gate_ac_003.txt:request_id=834273a9-aa94-48aa-9189-a7c66a131257
+tmp/_out_gate_ac_003.txt:request_id=e982e698-0e2f-4f44-9201-8bb5cd91107c
+tmp/_out_gate_ac_004.txt:request_id=c8c231ef-666a-46c1-9356-eff716aa5021
 ```
 
 ## Raw logs
