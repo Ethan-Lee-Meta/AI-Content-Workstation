@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
-
-from .schemas import AssetDetailOut, AssetListOut, PageOut
-
-from .service import get_asset, list_assets, traceability_for_asset
-
+from .schemas import AssetDeleteResponse, AssetDetailOut, AssetListOut, PageOut
+from .service import get_asset, list_assets, soft_delete_asset, traceability_for_asset
 
 router = APIRouter(tags=["assets"])
 
@@ -64,3 +61,9 @@ def get_asset_detail(asset_id: str) -> AssetDetailOut:
     trace = traceability_for_asset(asset_id)
     return AssetDetailOut(asset=asset, traceability=trace)
 
+
+@router.delete("/assets/{asset_id}", response_model=AssetDeleteResponse)
+def delete_asset(asset_id: str, request: Request) -> AssetDeleteResponse:
+    """Soft delete (idempotent)."""
+    rid = getattr(getattr(request, "state", None), "request_id", None)
+    return soft_delete_asset(asset_id=asset_id, request_id=rid)

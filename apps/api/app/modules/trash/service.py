@@ -88,8 +88,10 @@ def purge_deleted_assets(storage_root: str, request_id: Optional[str] = None) ->
             "ts": datetime.utcnow().isoformat() + "Z",
             "level": "audit",
             "event": "trash.empty",
+            "action": "trash_empty",
             "request_id": request_id,
             "purged_assets": purged_assets,
+            "purged_count": int(purged_assets),
             "purged_files": purged_files,
         }
         # stdout audit line (capturable in uvicorn log redirection)

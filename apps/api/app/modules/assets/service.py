@@ -178,25 +178,61 @@ def traceability_for_asset(asset_id: str) -> Dict[str, Any]:
     finally:
         conn.close()
 
-def soft_delete_asset(asset_id: str) -> dict:
-    """Soft delete an asset by setting assets.deleted_at (assets table is mutable; other evidence tables are append-only)."""
-    # NOTE: rely on existing engine/Session/Asset imports already used by list/get flows.
-    with Session(engine) as session:
-        asset = session.get(Asset, asset_id)
-        if not asset:
-            raise HTTPException(status_code=404, detail="asset not found")
+def soft_delete_asset(asset_id: str, request_id: Optional[str] = None) -> dict:
+    """
+    Soft delete (idempotent):
+    - sets assets.deleted_at = <UTC ISO8601 'Z'>
+    - MUST NOT hard-delete the row
+    - repeat calls return success with already_deleted=true
+    """
+    conn = _connect()
+    try:
+        if not _table_exists(conn, "assets"):
+            raise RuntimeError("DB missing table: assets")
 
-        deleted_at = getattr(asset, "deleted_at", None)
-        if deleted_at is None:
-            asset.deleted_at = datetime.utcnow()
-            session.add(asset)
-            session.commit()
-            session.refresh(asset)
-            deleted_at = getattr(asset, "deleted_at", None)
+        cols = _columns(conn, "assets")
+
+        # Pick id column defensively
+        if "id" in cols:
+            id_col = "id"
+        elif "asset_id" in cols:
+            id_col = "asset_id"
+        else:
+            raise RuntimeError("assets table missing id column (id/asset_id)")
+
+        if "deleted_at" not in cols:
+            raise RuntimeError("assets table missing deleted_at (soft delete invariant broken)")
+
+        row = conn.execute(
+            f"SELECT deleted_at FROM assets WHERE {id_col} = ? LIMIT 1",
+            (asset_id,),
+        ).fetchone()
+
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+
+        existing = row["deleted_at"]
+        already = existing is not None
+
+        if not already:
+            ts = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+            conn.execute(
+                f"UPDATE assets SET deleted_at = ? WHERE {id_col} = ?",
+                (ts, asset_id),
+            )
+            conn.commit()
+            deleted_at = ts
+        else:
+            deleted_at = existing
 
         return {
             "asset_id": asset_id,
-            "deleted_at": (deleted_at.isoformat() if deleted_at else None),
+            "deleted_at": deleted_at,
+            "already_deleted": bool(already),
             "status": "deleted",
         }
-
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass

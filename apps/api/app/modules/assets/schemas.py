@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -33,7 +34,7 @@ class AssetListOut(BaseModel):
 
 
 class TraceabilityOut(BaseModel):
-    # placeholder; will be implemented in Part 2/3
+    # placeholder; service degrades safely if links schema not present
     links: List[Dict] = Field(default_factory=list)
     related: Dict[str, List[str]] = Field(default_factory=dict)
 
@@ -42,8 +43,9 @@ class AssetDetailOut(BaseModel):
     asset: AssetDTO
     traceability: TraceabilityOut
 
+
 class AssetDeleteResponse(BaseModel):
     asset_id: str
     deleted_at: Optional[str] = None
+    already_deleted: bool = False
     status: str = "deleted"
-
