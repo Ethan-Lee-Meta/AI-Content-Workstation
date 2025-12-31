@@ -5,6 +5,7 @@ from app.modules.assets.router import router as assets_router
 from app.modules.runs.router import router as runs_router
 from app.modules.reviews.router import router as reviews_router
 from app.modules.trash.router import router as trash_router
+from app.modules.shots.router import router as shots_router
 APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 STORAGE_ROOT = os.getenv("STORAGE_ROOT", "./data/storage")
@@ -14,6 +15,7 @@ app.include_router(assets_router)
 app.include_router(runs_router)
 app.include_router(reviews_router)
 app.include_router(trash_router)
+app.include_router(shots_router)
 
 
 # --- BATCH-1 STEP-030: health db/storage enrich (do not remove) ---

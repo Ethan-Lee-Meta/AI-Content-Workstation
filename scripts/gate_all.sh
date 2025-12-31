@@ -159,3 +159,9 @@ done
 
 echo "== gate_all: passed =="
 exit 0
+
+# -------------------------
+# P1: shots api contract gate (append-only links semantics)
+# -------------------------
+echo "== gate_all: shots_api =="
+bash scripts/gate_shots_api.sh
