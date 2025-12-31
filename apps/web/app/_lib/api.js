@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:7000";
+const UPSTREAM_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:7000";
+// Browser MUST go through same-origin proxy to avoid CORS preflight (OPTIONS 405 on backend)
+const API_BASE = (typeof window === "undefined") ? UPSTREAM_BASE : "/api_proxy";
 
 function makeRid() {
   try {
@@ -97,4 +99,32 @@ export async function listAssets({ limit = 20, offset = 0, include_deleted = fal
 export async function getAsset(assetId) {
   const id = encodeURIComponent(String(assetId || ""));
   return apiFetch(`/assets/${id}`, { method: "GET" });
+}
+// P1: soft delete helper (compat across backend implementations)
+// Tries in order:
+//  1) DELETE /assets/{id}
+//  2) POST   /assets/{id}/delete
+//  3) PATCH  /assets/{id}  with { is_deleted:true, deleted:true }
+export async function softDeleteAsset(assetId) {
+  const id = encodeURIComponent(String(assetId || ""));
+  const attempts = [
+    { url: `/assets/${id}`, init: { method: "DELETE" } },
+    { url: `/assets/${id}/delete`, init: { method: "POST" } },
+    {
+      url: `/assets/${id}`,
+      init: {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_deleted: true, deleted: true }),
+      },
+    },
+  ];
+
+  let last = null;
+  for (const a of attempts) {
+    const r = await apiFetch(a.url, a.init);
+    last = r;
+    if (r && r.ok) return r;
+  }
+  return last;
 }

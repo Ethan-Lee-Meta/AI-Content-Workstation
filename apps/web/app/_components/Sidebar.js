@@ -8,7 +8,8 @@ const NAV = [
   { href: "/generate", label: "Generate" },
   { href: "/projects", label: "Projects" },
   { href: "/series", label: "Series" },
-  { href: "/shots", label: "Shots" }
+  { href: "/shots", label: "Shots" },
+  { href: "/trash", label: "Trash" },
 ];
 
 export default function Sidebar({ ctx }) {

@@ -1,0 +1,5 @@
+== gate_ac_005: start ==
+[ok] AC-005 interaction depth <= 3 (count=2)
+[ok] /generate entry exists (home or sidebar)
+[ok] /generate contains required markers
+== gate_ac_005: passed ==

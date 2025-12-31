@@ -1,0 +1,71 @@
+== gate_ac_003: start ==
+== [info] check api reachable ==
+[ok] api reachable: /openapi.json
+== [info] create run for each type (t2i/i2i/t2v/i2v) + refresh status ==
+[ok] create run: type=t2i run_id=01KDS88FYDH93NABJTKEPBSXY8 request_id=8de36e37-8796-419f-895b-adbe989f9f9d
+[ok] refresh run: run_id=01KDS88FYDH93NABJTKEPBSXY8
+[ok] create run: type=i2i run_id=01KDS88G54CSJZ72BZ3CS63YRC request_id=203c4189-b990-48ef-94fc-a72e072cee72
+[ok] refresh run: run_id=01KDS88G54CSJZ72BZ3CS63YRC
+[ok] create run: type=t2v run_id=01KDS88GCE10XCNR25VPMZMAVB request_id=595f4b13-7abb-45e8-84b5-1ab200934dea
+[ok] refresh run: run_id=01KDS88GCE10XCNR25VPMZMAVB
+[ok] create run: type=i2v run_id=01KDS88GK6RRP3RBW5HWQ4T2GG request_id=38c69b8a-6e29-4592-93a0-e64e8a493096
+[ok] refresh run: run_id=01KDS88GK6RRP3RBW5HWQ4T2GG
+[ok] create run for each type; status refreshed
+== [info] web routes accessible (baseline) ==
+== gate_web_routes: start ==
+== [info] next build ==
+
+> apps-web@0.1.0 build
+> next build
+
+▲ Next.js 16.1.0 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.6s
+  Running TypeScript ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/6) ...
+  Generating static pages using 19 workers (1/6) 
+  Generating static pages using 19 workers (2/6) 
+  Generating static pages using 19 workers (4/6) 
+✓ Generating static pages using 19 workers (6/6) in 1007.7ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api_proxy/[...path]
+├ ƒ /assets/[asset_id]
+├ ƒ /generate
+├ ƒ /library
+├ ○ /projects
+├ ƒ /projects/[project_id]
+├ ○ /series
+├ ƒ /series/[series_id]
+├ ○ /shots
+├ ƒ /shots/[shot_id]
+└ ƒ /trash
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+== [info] starting next (2000) ==
+== [info] wait for server ==
+[ok] server ready (http://127.0.0.1:2000)
+== [info] probing required routes ==
+[ok] route ok: /
+[ok] route ok: /library
+[ok] route ok: /assets/test-asset
+[ok] route ok: /generate
+[ok] route ok: /projects
+[ok] route ok: /projects/test-project
+[ok] route ok: /series
+[ok] route ok: /series/test-series
+[ok] route ok: /shots
+[ok] route ok: /shots/test-shot
+[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
+== gate_web_routes: passed ==
+== [info] verify /generate contains required sections markers in source (stable gate) ==
+[ok] /generate source contains required section markers (InputTypeSelector/PromptEditor/RunQueuePanel/ResultsPanel)
+== gate_ac_003: passed ==

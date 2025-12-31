@@ -1,0 +1,4 @@
+== gate_bulk_actions: start ==
+[ok] bulk select UI markers present
+[ok] bulk soft delete uses DELETE /assets/{id} via apiFetch
+== gate_bulk_actions: passed ==

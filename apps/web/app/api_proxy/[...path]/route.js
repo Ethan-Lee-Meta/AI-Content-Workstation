@@ -9,7 +9,8 @@ function buildUpstreamUrl(req, pathParts) {
 }
 
 async function proxy(req, ctx) {
-  const pathParts = (ctx && ctx.params && ctx.params.path) ? ctx.params.path : [];
+  const params = (ctx && ctx.params) ? (await ctx.params) : {};
+  const pathParts = (params && params.path) ? params.path : [];
   const upstreamUrl = buildUpstreamUrl(req, pathParts);
 
   // forward only necessary headers
@@ -51,3 +52,7 @@ export async function POST(req, ctx) { return proxy(req, ctx); }
 export async function PUT(req, ctx) { return proxy(req, ctx); }
 export async function PATCH(req, ctx) { return proxy(req, ctx); }
 export async function DELETE(req, ctx) { return proxy(req, ctx); }
+
+export async function OPTIONS(req, ctx) {
+  return proxy(req, ctx);
+}

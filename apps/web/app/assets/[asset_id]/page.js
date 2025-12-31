@@ -3,8 +3,9 @@ import ReviewPanelClient from './ReviewPanelClient';
 
 export const dynamic = 'force-dynamic';
 
-export default function AssetDetailPage({ params }) {
-  const assetId = params?.asset_id || 'unknown';
+export default async function AssetDetailPage({ params }) {
+  const p = (params && typeof params.then === "function") ? await params : (params || {});
+  const assetId = p?.asset_id || 'unknown';
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>

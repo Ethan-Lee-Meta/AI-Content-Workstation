@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiFetch, listAssets, pickPreviewUrl } from "../_lib/api";
+import { apiFetch, listAssets, pickPreviewUrl, softDeleteAsset } from "../_lib/api";
 
 function int(v, d) {
   const n = Number.parseInt(String(v ?? ""), 10);
@@ -141,7 +141,7 @@ export default function LibraryClient() {
     let firstFailEnv = null;
 
     for (const id of ids) {
-      const r = await apiFetch(`/assets/${encodeURIComponent(id)}`, { method: "DELETE" });
+      const r = await softDeleteAsset(id);
       last = r.request_id || r.error_envelope?.request_id || last;
 
       if (r.ok) {

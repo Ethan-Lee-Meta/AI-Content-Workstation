@@ -1,0 +1,63 @@
+== gate_ac_004: start ==
+== [info] check api reachable ==
+[ok] api reachable: /openapi.json
+== [info] validate override without reason -> error envelope includes request_id ==
+[ok] override missing reason rejected; error envelope ok; request_id=cfac5c7e-a121-49df-b396-6d4e01ba682a
+== [info] web routes accessible (baseline) ==
+== gate_web_routes: start ==
+== [info] next build ==
+
+> apps-web@0.1.0 build
+> next build
+
+▲ Next.js 16.1.0 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.5s
+  Running TypeScript ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/6) ...
+  Generating static pages using 19 workers (1/6) 
+  Generating static pages using 19 workers (2/6) 
+  Generating static pages using 19 workers (4/6) 
+✓ Generating static pages using 19 workers (6/6) in 689.6ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api_proxy/[...path]
+├ ƒ /assets/[asset_id]
+├ ƒ /generate
+├ ƒ /library
+├ ○ /projects
+├ ƒ /projects/[project_id]
+├ ○ /series
+├ ƒ /series/[series_id]
+├ ○ /shots
+├ ƒ /shots/[shot_id]
+└ ƒ /trash
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+== [info] starting next (2000) ==
+== [info] wait for server ==
+[ok] server ready (http://127.0.0.1:2000)
+== [info] probing required routes ==
+[ok] route ok: /
+[ok] route ok: /library
+[ok] route ok: /assets/test-asset
+[ok] route ok: /generate
+[ok] route ok: /projects
+[ok] route ok: /projects/test-project
+[ok] route ok: /series
+[ok] route ok: /series/test-series
+[ok] route ok: /shots
+[ok] route ok: /shots/test-shot
+[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
+== gate_web_routes: passed ==
+== [info] verify Review UI markers in source (stable gate) ==
+[ok] Review UI markers present and wired
+== gate_ac_004: passed ==
