@@ -4,6 +4,6 @@
 [info] using log: tmp/_out_gate_openapi_reachable.txt
 [info] using log: tmp/_out_gate_ac_003.txt
 [info] using log: tmp/_out_gate_ac_004.txt
-[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=8de36e37-8796-419f-895b-adbe989f9f9d
+[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=40408e70-9623-44c5-b04c-672f5c56c213
 [ok] e2e happy path passed
 == gate_e2e_happy_path: passed ==

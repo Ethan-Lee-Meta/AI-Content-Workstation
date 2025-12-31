@@ -7,20 +7,22 @@
 ▲ Next.js 16.1.0 (Turbopack)
 
   Creating an optimized production build ...
-✓ Compiled successfully in 2.8s
+✓ Compiled successfully in 3.0s
   Running TypeScript ...
   Collecting page data using 19 workers ...
   Generating static pages using 19 workers (0/6) ...
   Generating static pages using 19 workers (1/6) 
   Generating static pages using 19 workers (2/6) 
   Generating static pages using 19 workers (4/6) 
-✓ Generating static pages using 19 workers (6/6) in 1314.5ms
+✓ Generating static pages using 19 workers (6/6) in 1345.1ms
   Finalizing page optimization ...
 
 Route (app)
 ┌ ○ /
 ├ ○ /_not-found
 ├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
 ├ ƒ /assets/[asset_id]
 ├ ƒ /generate
 ├ ƒ /library
@@ -28,8 +30,9 @@ Route (app)
 ├ ƒ /projects/[project_id]
 ├ ○ /series
 ├ ƒ /series/[series_id]
-├ ○ /shots
+├ ƒ /shots
 ├ ƒ /shots/[shot_id]
+├ ƒ /transfer
 └ ƒ /trash
 
 
@@ -45,20 +48,10 @@ Route (app)
 [ok] route ok: /assets/test-asset
 [ok] route ok: /generate
 [ok] route ok: /projects
-[err] route failed: /projects/test-project http_code=500
-== [debug] last logs ==
-
-> apps-web@0.1.0 start
-> next start -p 2000
-
-▲ Next.js 16.1.0
-- Local:         http://localhost:2000
-- Network:       http://10.10.10.6:2000
-
-✓ Starting...
-✓ Ready in 493ms
-⨯ ReferenceError: Cannot access 'c' before initialization
-    at c (E:\01Small_Tools\AI_Content_Generation_Workstation\ai-content-workstation\apps\web\.next\server\chunks\ssr\[root-of-the-server]__bce3c7c5._.js:1:399)
-    at stringify (<anonymous>) {
-  digest: '1785781464'
-}
+[ok] route ok: /projects/test-project
+[ok] route ok: /series
+[ok] route ok: /series/test-series
+[ok] route ok: /shots
+[ok] route ok: /shots/test-shot
+[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
+== gate_web_routes: passed ==

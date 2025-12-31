@@ -2,14 +2,14 @@
 == [info] check api reachable ==
 [ok] api reachable: /openapi.json
 == [info] create run for each type (t2i/i2i/t2v/i2v) + refresh status ==
-[ok] create run: type=t2i run_id=01KDS88FYDH93NABJTKEPBSXY8 request_id=8de36e37-8796-419f-895b-adbe989f9f9d
-[ok] refresh run: run_id=01KDS88FYDH93NABJTKEPBSXY8
-[ok] create run: type=i2i run_id=01KDS88G54CSJZ72BZ3CS63YRC request_id=203c4189-b990-48ef-94fc-a72e072cee72
-[ok] refresh run: run_id=01KDS88G54CSJZ72BZ3CS63YRC
-[ok] create run: type=t2v run_id=01KDS88GCE10XCNR25VPMZMAVB request_id=595f4b13-7abb-45e8-84b5-1ab200934dea
-[ok] refresh run: run_id=01KDS88GCE10XCNR25VPMZMAVB
-[ok] create run: type=i2v run_id=01KDS88GK6RRP3RBW5HWQ4T2GG request_id=38c69b8a-6e29-4592-93a0-e64e8a493096
-[ok] refresh run: run_id=01KDS88GK6RRP3RBW5HWQ4T2GG
+[ok] create run: type=t2i run_id=01KDTGZV3JW55HM2CT811N5Y0J request_id=40408e70-9623-44c5-b04c-672f5c56c213
+[ok] refresh run: run_id=01KDTGZV3JW55HM2CT811N5Y0J
+[ok] create run: type=i2i run_id=01KDTGZVBBQX39ZC4FERS4MDMQ request_id=a7ff32f1-22f8-4166-8b5e-ff021e825bd7
+[ok] refresh run: run_id=01KDTGZVBBQX39ZC4FERS4MDMQ
+[ok] create run: type=t2v run_id=01KDTGZVHXVXK6Z3SM7B9JHC15 request_id=0088a3a4-6b29-4f66-9c08-158be144cd8a
+[ok] refresh run: run_id=01KDTGZVHXVXK6Z3SM7B9JHC15
+[ok] create run: type=i2v run_id=01KDTGZVR7Q9X1PCTYYYRZB85D request_id=c446af1b-4d89-40e7-8f25-6024db6a28ee
+[ok] refresh run: run_id=01KDTGZVR7Q9X1PCTYYYRZB85D
 [ok] create run for each type; status refreshed
 == [info] web routes accessible (baseline) ==
 == gate_web_routes: start ==
@@ -21,20 +21,22 @@
 ▲ Next.js 16.1.0 (Turbopack)
 
   Creating an optimized production build ...
-✓ Compiled successfully in 2.6s
+✓ Compiled successfully in 2.3s
   Running TypeScript ...
   Collecting page data using 19 workers ...
   Generating static pages using 19 workers (0/6) ...
   Generating static pages using 19 workers (1/6) 
   Generating static pages using 19 workers (2/6) 
   Generating static pages using 19 workers (4/6) 
-✓ Generating static pages using 19 workers (6/6) in 1007.7ms
+✓ Generating static pages using 19 workers (6/6) in 654.5ms
   Finalizing page optimization ...
 
 Route (app)
 ┌ ○ /
 ├ ○ /_not-found
 ├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
 ├ ƒ /assets/[asset_id]
 ├ ƒ /generate
 ├ ƒ /library
@@ -42,8 +44,9 @@ Route (app)
 ├ ƒ /projects/[project_id]
 ├ ○ /series
 ├ ƒ /series/[series_id]
-├ ○ /shots
+├ ƒ /shots
 ├ ƒ /shots/[shot_id]
+├ ƒ /transfer
 └ ƒ /trash
 
 

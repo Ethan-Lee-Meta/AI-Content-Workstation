@@ -5,35 +5,6 @@
 2) 跑通 gate_all(full)；
 3) 理解并继续开发（尤其是 Shots 工作台 UI 与 Links SSOT 关系编排）。
 
-## -1) Quick Index（导航）
-
-- [0) Snapshot](#0-snapshot交接时必须填写)
-- [0.1 Hard Locks](#01-hard-locks不可变更项如需变更必须走-cr)
-- [1) Backend](#1-backend已交付能力按契约视角)
-- [2) Frontend](#2-frontend已交付能力按页面与交互视角)
-- [3) Verification Gates](#3-verification-gates门禁与回归)
-- [4) 开发续作指南](#4-开发续作指南让新接手者可以直接开干)
-- [BATCH-7](#batch-7)
-- [BATCH-8](#batch-8-phase-p1--provideradapter-可执行化feature-flag-step-190)
-- [BATCH-9](#batch-9)
-- [6) 快速上手](#6-快速上手15-分钟-checklist)
-
-> 注：不同 Markdown 渲染器的锚点算法略有差异；如链接不跳转，使用编辑器搜索对应标题即可（例如搜索 “## 3) Verification”）。
-
-## -0) Delta Summary（最新增量：BATCH-9）
-
-- 新增/强化（面向下一窗口的关键差异）：
-  - **AC-006 导出/导入目录包（P1 增量 API）**：`/exports` + `/imports`（不改变既有 required_endpoints）
-  - **只读 Manifest（无导入预览）**：`GET /exports/{export_id}/manifest`，BATCH-10 UI 直接消费
-  - **门禁新增**：`scripts/gate_export_import.sh`（落盘解析，避免 Git Bash 下 `curl | python -` 管道不稳定）
-- 产物与可追溯：
-  - 导出落盘：`data/exports/{export_id}/`（`manifest.json`, `bundle.json`, `export.json`, 可选 `blobs/`）
-  - 导入落盘：`data/imports/{import_id}/import.json`
-- 运行时回滚：
-  - 首选 `EXPORT_IMPORT_ENABLED=0` 关闭导出/导入端点（不破坏 P0 基线）
-
-(Generated at 2025-12-31T15:20:05Z UTC)
-
 ---
 
 ## 0) Snapshot（交接时必须填写）
@@ -251,38 +222,8 @@
 
 ---
 
----
+## 5) 本次（BATCH-7）交付点摘要（给下一窗口/开发者的最小必要信息）
 
-## 5) Batch Sections — Standard Template（统一结构）
-
-> 目的：把每个 BATCH 的“交付/契约/门禁/回滚/交接输出”固定成可审计结构，便于跨窗口接力。
-
-每个 BATCH 段落应至少包含：
-- `BATCH-X.0 Snapshot`：更新时间、可回滚开关（如有）、本地落盘路径（如有）
-- `BATCH-X.1 What shipped`：本批交付能力清单（按用户价值/契约视角）
-- `BATCH-X.2 Contract surface`：新增/变化 endpoints、DTO 字段名（仅字段名）、不变量
-- `BATCH-X.3 Verification`：可复跑 gates（含关键 [ok] 信号与样例 request_id）
-- `BATCH-X.4 Rollback`：优先 feature-flag/off，其次 git revert；并声明数据清理策略
-- `BATCH-X.5 Handoff outputs`：下一窗口必须携带的内容（commit SHA / 证据文件 / 入口检查）
-
-(Updated at 2025-12-31T15:20:18Z UTC)
-
----
-
-## BATCH-7 (PHASE-P1) — Shots UI（Links SSOT 编排 + gate_shots_ui）
-
-### BATCH-7.0 Snapshot
-- Updated at (UTC): `2025-12-31T15:20:18Z`
-- Key pages:
-  - `/shots`
-  - `/shots/:shot_id`
-- Key gate:
-  - `bash scripts/gate_shots_ui.sh`
-- Evidence files (if present):
-  - `docs/EVIDENCE_P0_FULL.md`
-  - `docs/SHOTS_UI_EVIDENCE.md`
-
-### BATCH-7.1 What shipped
 交付内容：
 - Shots UI 路由可用：`/shots` 与 `/shots/:shot_id`
 - 关系可视化：详情页展示 `linked_refs`（来自 Links SSOT）
@@ -298,36 +239,11 @@
 
 ---
 
-### BATCH-7.2 Contract surface / invariants
-- Links 为 SSOT：所有关系增删必须走 Links API（tombstone 语义）
-- 前端只展示/编排，不可把关系作为“事实来源”在本地缓存替代后端
-
-### BATCH-7.3 Verification
-- `bash scripts/gate_shots_ui.sh`
-- （回归）`bash scripts/gate_all.sh --mode=full`
-
-### BATCH-7.4 Rollback
-- 推荐：如有 feature-flag 则优先关闭；否则 `git revert <merge_commit_sha>`
-- 不强制删除数据/证据文件（避免误删）；开发态清理由 runbook 明确
-
-### BATCH-7.5 Handoff outputs（下一窗口必须携带）
-- 当前 HEAD SHA
-- `docs/EVIDENCE_P0_FULL.md`（若存在）
-- `docs/SHOTS_UI_EVIDENCE.md`（若存在）
-
 ## BATCH-8 (PHASE-P1) — ProviderAdapter 可执行化（Feature Flag, STEP-190）
 
 - Branch: `{branch}`
 - Head: `{head}`
 - Updated at (UTC): `{ts}`
-
-### BATCH-8.2 Contract surface（API 不变；行为增量）
-- Endpoints（路径不变）：
-  - `POST /runs`
-  - `GET /runs/{run_id}`
-- Invariants：
-  - 不新增 DTO 字段名、不改字段形状
-  - 通过 `run_events` append-only 记录状态迁移与结果引用（契约不漂移）
 
 ### BATCH-8.1 交付内容（What shipped）
 - ProviderAdapter 抽象边界（可插拔）：`apps/api/app/modules/runs/providers/*`
@@ -520,35 +436,3 @@
 - `/openapi.json` 包含 `/exports` 与 `/imports`
 - `GET /exports/{export_id}/manifest` 可读（**无需导入**）
 - `gate_export_import` rc=0
-
----
-
-## BATCH-10 (PHASE-P1) — AC-006 Export Preview UI + Import UI (No-Import Preview)
-
-### BATCH-10.0 Snapshot
-- Key page:
-  - `/transfer` (supports deep-link: `/transfer?export_id=...`)
-- Optional UI flag:
-  - `EXPORT_IMPORT_UI_ENABLED=0|1` (0 disables the page rendering)
-- Key gate:
-  - `bash scripts/gate_export_preview_ui.sh`
-
-### BATCH-10.1 What shipped
-- No-Import Preview:
-  - Reads `GET /exports/{export_id}/manifest` and renders: assets_preview + row_counts evidence summary
-- Controlled Import (<=3 layers):
-  - Preview -> Confirm (2nd confirmation) -> Result summary
-  - Import request body is built from OpenAPI schema (still backend-validated)
-- Error handling:
-  - Any failure shows error envelope + request_id (and X-Request-Id when present)
-
-### BATCH-10.2 Verification
-- `bash scripts/gate_export_preview_ui.sh`
-- Regression:
-  - `bash scripts/gate_all.sh --mode=full`
-
-### BATCH-10.3 Rollback
-- Preferred:
-  - `EXPORT_IMPORT_UI_ENABLED=0`
-- Or:
-  - `git revert <merge_commit_sha>`

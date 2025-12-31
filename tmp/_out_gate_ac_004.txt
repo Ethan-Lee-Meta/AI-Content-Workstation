@@ -2,7 +2,7 @@
 == [info] check api reachable ==
 [ok] api reachable: /openapi.json
 == [info] validate override without reason -> error envelope includes request_id ==
-[ok] override missing reason rejected; error envelope ok; request_id=cfac5c7e-a121-49df-b396-6d4e01ba682a
+[ok] override missing reason rejected; error envelope ok; request_id=c6078ff7-5e05-432b-928a-d179888b9c7e
 == [info] web routes accessible (baseline) ==
 == gate_web_routes: start ==
 == [info] next build ==
@@ -20,13 +20,15 @@
   Generating static pages using 19 workers (1/6) 
   Generating static pages using 19 workers (2/6) 
   Generating static pages using 19 workers (4/6) 
-✓ Generating static pages using 19 workers (6/6) in 689.6ms
+✓ Generating static pages using 19 workers (6/6) in 777.4ms
   Finalizing page optimization ...
 
 Route (app)
 ┌ ○ /
 ├ ○ /_not-found
 ├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
 ├ ƒ /assets/[asset_id]
 ├ ƒ /generate
 ├ ƒ /library
@@ -34,8 +36,9 @@ Route (app)
 ├ ƒ /projects/[project_id]
 ├ ○ /series
 ├ ƒ /series/[series_id]
-├ ○ /shots
+├ ƒ /shots
 ├ ƒ /shots/[shot_id]
+├ ƒ /transfer
 └ ƒ /trash
 
 

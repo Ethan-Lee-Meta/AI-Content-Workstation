@@ -2,7 +2,6 @@ from fastapi import FastAPI
 import os
 
 from app.modules.assets.router import router as assets_router
-from app.modules.exports_imports.router import router as exports_imports_router
 from app.modules.runs.router import router as runs_router
 from app.modules.reviews.router import router as reviews_router
 from app.modules.trash.router import router as trash_router
@@ -13,7 +12,6 @@ STORAGE_ROOT = os.getenv("STORAGE_ROOT", "./data/storage")
 
 app = FastAPI(title="AI Content Workstation API", version=APP_VERSION)
 app.include_router(assets_router)
-app.include_router(exports_imports_router)
 app.include_router(runs_router)
 app.include_router(reviews_router)
 app.include_router(trash_router)

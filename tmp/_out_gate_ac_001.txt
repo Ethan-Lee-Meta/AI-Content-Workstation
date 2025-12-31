@@ -13,20 +13,22 @@
 ▲ Next.js 16.1.0 (Turbopack)
 
   Creating an optimized production build ...
-✓ Compiled successfully in 2.8s
+✓ Compiled successfully in 2.7s
   Running TypeScript ...
   Collecting page data using 19 workers ...
   Generating static pages using 19 workers (0/6) ...
   Generating static pages using 19 workers (1/6) 
   Generating static pages using 19 workers (2/6) 
   Generating static pages using 19 workers (4/6) 
-✓ Generating static pages using 19 workers (6/6) in 1236.6ms
+✓ Generating static pages using 19 workers (6/6) in 1492.0ms
   Finalizing page optimization ...
 
 Route (app)
 ┌ ○ /
 ├ ○ /_not-found
 ├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
 ├ ƒ /assets/[asset_id]
 ├ ƒ /generate
 ├ ƒ /library
@@ -34,8 +36,9 @@ Route (app)
 ├ ƒ /projects/[project_id]
 ├ ○ /series
 ├ ƒ /series/[series_id]
-├ ○ /shots
+├ ƒ /shots
 ├ ƒ /shots/[shot_id]
+├ ƒ /transfer
 └ ƒ /trash
 
 

@@ -130,7 +130,6 @@ while [ $i -le "$REPEAT" ]; do
 
   if [ "$MODE" = "preflight" ]; then
     run_gate "api_smoke" "scripts/gate_api_smoke.sh" "$i" || exit $?
-bash scripts/gate_export_import.sh
   elif [ "$MODE" = "full" ]; then
     run_gate "health_contract_check" "scripts/gate_health_contract_check.sh" "$i" || exit $?
     run_gate "request_id_propagation_check" "scripts/gate_request_id_propagation_check.sh" "$i" || exit $?
@@ -150,7 +149,6 @@ bash scripts/gate_export_import.sh
 
     run_gate "shots_api" "scripts/gate_shots_api.sh" "$i" || exit $?
     run_gate "shots_ui" "scripts/gate_shots_ui.sh" "$i" || exit $?
-    run_gate "export_preview_ui" "scripts/gate_export_preview_ui.sh" "$i" || exit $?
 
     run_gate "e2e_happy_path" "scripts/gate_e2e_happy_path.sh" "$i" || exit $?
     gen_evidence_full "$i" || exit $?

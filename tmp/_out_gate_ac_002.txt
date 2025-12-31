@@ -2,7 +2,7 @@
 == [info] check api reachable ==
 [ok] api reachable: /openapi.json
 == [info] pick an asset id from /assets list (if any) ==
-[ok] picked asset_id=5FBA8D5F46254AF9819D359F83726558
+[ok] picked asset_id=AACADF2B93B344EE93AF656AB5EBE57D
 [ok] /assets/:id returns an object
 == [info] validate error envelope keys for non-existent asset (should include request_id) ==
 [ok] error envelope includes error/message/request_id/details
@@ -23,13 +23,15 @@
   Generating static pages using 19 workers (1/6) 
   Generating static pages using 19 workers (2/6) 
   Generating static pages using 19 workers (4/6) 
-✓ Generating static pages using 19 workers (6/6) in 994.7ms
+✓ Generating static pages using 19 workers (6/6) in 1357.5ms
   Finalizing page optimization ...
 
 Route (app)
 ┌ ○ /
 ├ ○ /_not-found
 ├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
 ├ ƒ /assets/[asset_id]
 ├ ƒ /generate
 ├ ƒ /library
@@ -37,8 +39,9 @@ Route (app)
 ├ ƒ /projects/[project_id]
 ├ ○ /series
 ├ ƒ /series/[series_id]
-├ ○ /shots
+├ ƒ /shots
 ├ ƒ /shots/[shot_id]
+├ ƒ /transfer
 └ ƒ /trash
 
 

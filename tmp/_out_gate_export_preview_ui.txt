@@ -1,0 +1,9 @@
+== gate_export_preview_ui: start ==
+== [info] API_BASE_URL=http://127.0.0.1:7000 ==
+== [info] WEB_BASE_URL=http://127.0.0.1:2000 ==
+== [info] TMPDIR=/tmp ==
+[ok] openapi has exports/imports paths
+[ok] export created export_id=16EB21EE8766496BB127E73325D1DB79
+[ok] manifest readable (no import); assets_preview=5; links=74
+[ok] transfer page contains No-Import Preview
+[ok] gate_export_preview_ui passed
