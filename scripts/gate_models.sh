@@ -55,6 +55,7 @@ engine = create_engine(url, future=True, connect_args=connect_args)
 required_tables = [
     "assets","prompt_packs","runs","reviews","links",
     "projects","series","shots",
+    "characters","character_ref_sets","provider_profiles",
 ]
 
 required_asset_cols = {"id","kind","created_at","deleted_at","project_id","series_id"}
@@ -64,6 +65,7 @@ required_triggers = [
     "trg_runs_no_update","trg_runs_no_delete",
     "trg_reviews_no_update","trg_reviews_no_delete",
     "trg_links_no_update","trg_links_no_delete",
+    "trg_character_ref_sets_no_update","trg_character_ref_sets_no_delete",
 ]
 
 def fetchall(sql: str, **params):
@@ -104,6 +106,32 @@ if missing_trigs:
     print("[err] missing append-only triggers:", missing_trigs)
     raise SystemExit(23)
 print("[ok] immutability policy enforced (append-only triggers present)")
+
+# character_ref_sets unique(character_id, version)
+def has_unique_index_on_cols(table: str, cols: list[str]) -> bool:
+    idxs = fetchall(f"PRAGMA index_list('{table}')")
+    for r in idxs:
+        name = r[1]
+        is_unique = int(r[2]) if len(r) >= 3 else 0
+        if is_unique != 1:
+            continue
+        info = fetchall(f"PRAGMA index_info('{name}')")
+        got = [x[2] for x in info]  # seqno,cid,name
+        if got == cols:
+            return True
+    return False
+
+if not has_unique_index_on_cols("character_ref_sets", ["character_id","version"]):
+    print("[err] missing unique index: character_ref_sets(character_id, version)")
+    raise SystemExit(26)
+print("[ok] unique index present: character_ref_sets(character_id, version)")
+
+# provider_profiles partial unique index for global default
+rows = fetchall("SELECT name FROM sqlite_master WHERE type='index' AND name='uq_provider_profiles_global_default'")
+if not rows:
+    print("[err] missing unique index: uq_provider_profiles_global_default (is_global_default=1 only one)")
+    raise SystemExit(27)
+print("[ok] unique index present: uq_provider_profiles_global_default")
 
 # nullable columns in optional hierarchy
 def check_nullable_col(table: str, col: str):

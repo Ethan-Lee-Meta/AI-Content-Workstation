@@ -1,0 +1,11 @@
+== gate_models: start ==
+[ok] alembic upgrade head ok
+[ok] required tables exist: assets, prompt_packs, runs, reviews, links, projects, series, shots, characters, character_ref_sets, provider_profiles
+[ok] assets.deleted_at present
+[ok] assets.project_id/series_id nullable (unbound allowed)
+[ok] immutability policy enforced (append-only triggers present)
+[ok] unique index present: character_ref_sets(character_id, version)
+[ok] unique index present: uq_provider_profiles_global_default
+[ok] optional hierarchy nullable columns ok
+[ok] gate_models passed
+[ok] gate_models passed

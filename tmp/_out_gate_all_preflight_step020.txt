@@ -1,0 +1,34 @@
+== gate_all: start ==
+== [info] mode=preflight repeat=1 ts=20260101_055643 ==
+== [info] branch=dev/v1_1-batch1-step020-data_model head=e26bf410fe890a843a40a6bad8897a922b71ca22 ==
+== [run] 1/1 ==
+== api_smoke: start ==
+== gate_api_smoke: start ==
+== gate_health_contract_check ==
+[ok] /health keys present: status, version, db, storage, last_error_summary
+== gate_request_id_propagation_check ==
+[ok] header present: X-Request-Id (non-empty)
+== gate_openapi_reachable ==
+[ok] /openapi.json reachable
+== gate_error_envelope_check ==
+[ok] error path header present: X-Request-Id (non-empty)
+[ok] error envelope includes request_id and required keys
+[ok] gate_api_smoke passed
+== api_smoke: passed ==
+== gate_export_import: start ==
+== [info] API_BASE_URL=http://127.0.0.1:7000 ==
+== [info] PY=E:/01Small_Tools/AI_Content_Generation_Workstation/ai-content-workstation/apps/api/.venv/Scripts/python.exe ==
+== [info] TMPDIR=E:/01Small_Tools/AI_Content_Generation_Workstation/ai-content-workstation/tmp/gate_export_import.2086 ==
+[ok] openapi has exports/imports paths
+[ok] export create request_id=85D526E7BC404160BDA229040FB1EC27
+[ok] export_id=2E119840188641EFB4648E27565B9775
+[ok] manifest readable (no import); request_id=5C440B7C398B4B218FAB6E6BD6F94BCD
+== [info] asset_table=assets expected=376 ==
+== [info] link_table=links expected=5184 ==
+[ok] bad manifest returns error envelope + request_id
+[ok] import create request_id=3B223B63063B42009579FD0CC60B2CD4
+[ok] import_id=FA305B425C054CAD89F57D54FADC4FE1
+[ok] import completed
+[ok] relationships (links) preserved: imported=5184
+== gate_export_import: done ==
+== gate_all: passed ==
