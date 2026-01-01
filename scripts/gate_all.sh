@@ -134,6 +134,8 @@ bash scripts/gate_export_import.sh
   elif [ "$MODE" = "full" ]; then
 
   bash scripts/gate_characters.sh
+  bash scripts/gate_runs_trace_v11.sh
+
     run_gate "health_contract_check" "scripts/gate_health_contract_check.sh" "$i" || exit $?
     run_gate "request_id_propagation_check" "scripts/gate_request_id_propagation_check.sh" "$i" || exit $?
     run_gate "openapi_reachable" "scripts/gate_openapi_reachable.sh" "$i" || exit $?

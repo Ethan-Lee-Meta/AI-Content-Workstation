@@ -1,0 +1,52 @@
+npm info using npm@11.6.2
+npm info using node@v24.11.1
+npm http cache https://registry.npmjs.org/@next%2fswc-darwin-arm64 42ms (cache hit)
+npm http cache https://registry.npmjs.org/@next%2fswc-darwin-x64 30ms (cache hit)
+npm http cache https://registry.npmjs.org/@next%2fswc-linux-arm64-gnu 21ms (cache hit)
+npm http cache https://registry.npmjs.org/@next%2fswc-linux-arm64-musl 22ms (cache hit)
+npm http cache https://registry.npmjs.org/@next%2fswc-linux-x64-gnu 48ms (cache hit)
+npm http cache https://registry.npmjs.org/@next%2fswc-linux-x64-musl 25ms (cache hit)
+npm http cache https://registry.npmjs.org/@next%2fswc-win32-arm64-msvc 30ms (cache hit)
+npm http fetch GET 200 https://registry.npmjs.org/semver 3903ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-darwin-arm64 168ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-darwin-x64 166ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-darwin-arm64 496ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-darwin-x64 163ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linux-arm 176ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linux-arm64 499ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linux-ppc64 1181ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linux-riscv64 166ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linux-s390x 384ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linux-x64 170ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linuxmusl-arm64 162ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-libvips-linuxmusl-x64 505ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linux-arm 188ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linux-arm64 171ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linux-ppc64 170ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linux-riscv64 181ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linux-s390x 1042ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linux-x64 178ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linuxmusl-arm64 157ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-linuxmusl-x64 168ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-wasm32 756ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-win32-arm64 384ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@img%2fsharp-win32-ia32 351ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@emnapi%2fruntime 183ms (cache revalidated)
+npm http cache semver@https://registry.npmjs.org/semver/-/semver-7.7.3.tgz 1ms (cache hit)
+npm http cache https://registry.npmjs.org/baseline-browser-mapping 50ms (cache hit)
+npm http cache https://registry.npmjs.org/loose-envify 66ms (cache hit)
+npm http cache https://registry.npmjs.org/next 164ms (cache hit)
+npm http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 747ms
+npm http cache https://registry.npmjs.org/nanoid 738ms (cache hit)
+npm http cache https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz 693ms (cache hit)
+npm http cache https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.9.11.tgz 717ms (cache hit)
+npm http cache https://registry.npmjs.org/nanoid/-/nanoid-3.3.11.tgz 1451ms (cache hit)
+npm http cache https://registry.npmjs.org/next/-/next-16.1.0.tgz 1633ms (cache hit)
+
+added 1 package, removed 1 package, changed 4 packages, and audited 24 packages in 1m
+
+5 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm info ok

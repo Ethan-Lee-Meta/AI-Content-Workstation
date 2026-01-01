@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +37,7 @@ class TraceabilityOut(BaseModel):
     # placeholder; service degrades safely if links schema not present
     links: List[Dict] = Field(default_factory=list)
     related: Dict[str, List[str]] = Field(default_factory=dict)
+    chain: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AssetDetailOut(BaseModel):

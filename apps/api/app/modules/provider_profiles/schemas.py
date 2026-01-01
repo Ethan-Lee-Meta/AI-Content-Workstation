@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field
+
+from app.modules.assets.schemas import PageOut
+
+
+class ProviderTypeDTO(BaseModel):
+    provider_type: str
+    label: str = ""
+    config_hints: Dict[str, Any] = Field(default_factory=dict)
+    secrets_hints: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ProviderTypesOut(BaseModel):
+    items: List[ProviderTypeDTO]
+
+
+class ProviderProfileDTO(BaseModel):
+    id: str
+    name: str
+    provider_type: str
+
+    # API 永不明文回显 secret；此处为脱敏后的 config
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+    secrets_redaction_policy: Dict[str, Any] = Field(default_factory=dict)
+
+    is_global_default: bool = False
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ProviderProfilesListOut(BaseModel):
+    items: List[ProviderProfileDTO]
+    page: PageOut
+
+
+class ProviderProfileCreateIn(BaseModel):
+    name: str = Field(..., min_length=1)
+    provider_type: str = Field(..., min_length=1)
+
+    # 允许前端提交任意 JSON（后端存储为 json 字符串）
+    config: Dict[str, Any] = Field(default_factory=dict)
+
+    # 约定：{"redact_keys":["api_key","token",...]}（可扩展）
+    secrets_redaction_policy: Dict[str, Any] = Field(default_factory=dict)
+
+    # 可选：创建时直接设为默认
+    set_global_default: bool = False
+
+
+class ProviderProfilePatchIn(BaseModel):
+    name: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
+    secrets_redaction_policy: Optional[Dict[str, Any]] = None
+
+    # 可选：设/取消全局默认（唯一）
+    set_global_default: Optional[bool] = None
+
+
+class ProviderProfileDeleteOut(BaseModel):
+    id: str
+    status: str = "scrubbed"
+    is_global_default: bool = False
