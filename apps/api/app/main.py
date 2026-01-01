@@ -139,7 +139,13 @@ async def _http_exc_handler(request: Request, exc: StarletteHTTPException):
 @app.exception_handler(RequestValidationError)
 async def _validation_exc_handler(request: Request, exc: RequestValidationError):
     rid = getattr(request.state, "request_id", None)
-    return _err_envelope("validation_error", "request validation failed", rid, exc.errors(), 422)
+    errs = exc.errors()
+    # pydantic v2 may include non-JSON-serializable objects in ctx; make it JSON-safe
+    try:
+        safe = json.loads(json.dumps(errs, ensure_ascii=False, default=str))
+    except Exception:
+        safe = [{"error": "unserializable_validation_errors"}]
+    return _err_envelope("validation_error", "request validation failed", rid, safe, 422)
 
 @app.exception_handler(Exception)
 async def _unhandled_exc_handler(request: Request, exc: Exception):
