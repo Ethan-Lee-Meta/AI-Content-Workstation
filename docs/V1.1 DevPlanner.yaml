@@ -1,0 +1,497 @@
+ENVELOPE:
+  window_role: "DevPlanner"
+  project:
+    name: "<项目名>"
+    repo: "<repo_url_or_NA>"
+  baseline:
+    repo_commit: "<git_sha_or_NA>"
+
+  inputs_fingerprints:
+    AI_SPECDIGEST: { version: "1.1.0", sha256: "cc7c290224a37ef3b92bc797de37e8e0148e7107959c8e1bf3e5373aeabf51a3", status: "frozen" }
+    ARCH_DIGEST:   { version: "1.1.0", sha256: "f83879ffdc5b1c191ad235cd046ebd28d008ba9677c45f554aebc60b4b0b9d00", status: "frozen" }
+    ARCH_CONTRACT_SUMMARY: { present: true, sha256: "d0f06d7965c18479118bdb5653635e8b421fa4d5b1ba7871e3e10f78f68fc2bb" }
+    REQ_CONTRACT_SUMMARY:  { present: true, sha256: "5dcf49e5b47acc255a715c1fa346b43fae9186b56ec08f0e8bb930d024e3dcad" }
+    PROJECT_ANALYSIS_V1:   { present: true, sha256: "33360d40ac1ecee3b9ca97e032710e9d5b218e5ba3eca9127478f649aa9a8d2a" }
+
+  outputs_fingerprints:
+    MASTER_PLAN:         { version: "1.1.0", sha256: "<TBD: computed by gate/CI>", status: "draft" }
+    DEVELOPMENT_BATCHES: { version: "1.1.0", sha256: "<TBD: computed by gate/CI>", status: "draft" }
+    TASK_ASSIGNMENT:     { version: "1.1.0", sha256: "<TBD: computed by gate/CI>", status: "draft" }
+
+  current_intent:
+    phase: "kickoff"
+    goal: "Decompose ARCH_DIGEST into mergeable, verifiable, rollbackable steps with explicit dependencies and parallel batches"
+
+PLANNER_ALIGNMENT_MATRIX:
+  P0_AC_COVERAGE:
+    - ac: "AC-001"
+      title: "Library 总览展示所有图片与视频且可进入详情"
+      verified_in_steps: ["STEP-010", "STEP-120", "STEP-140"]
+    - ac: "AC-002"
+      title: "资产详情具备 Evidence Chain 追溯信息"
+      verified_in_steps: ["STEP-070", "STEP-120", "STEP-140"]
+    - ac: "AC-003"
+      title: "4 类生成入口可发起生成且结果默认入库可追溯"
+      verified_in_steps: ["STEP-060", "STEP-110", "STEP-140"]
+    - ac: "AC-004"
+      title: "Review 量化输出 + 抽检 + 覆写留痕"
+      verified_in_steps: ["STEP-010", "STEP-110", "STEP-140"]
+    - ac: "AC-007"
+      title: "Characters 角色确认后可在 Generate 中选择并可追溯"
+      verified_in_steps: ["STEP-050", "STEP-060", "STEP-100", "STEP-110", "STEP-140"]
+    - ac: "AC-008"
+      title: "提示词链路可追溯（组装Prompt可选）"
+      verified_in_steps: ["STEP-060", "STEP-070", "STEP-110", "STEP-140"]
+    - ac: "AC-009"
+      title: "Trash 回收站可还原且不丢失追溯关联"
+      verified_in_steps: ["STEP-010", "STEP-140"]
+
+  P1_AC_COVERAGE:
+    - ac: "AC-010"
+      title: "Settings 可新增 ProviderProfile 并设默认；工作区继承且可覆写"
+      verified_in_steps: ["STEP-030", "STEP-040", "STEP-090", "STEP-110", "STEP-140"]
+
+  NON_NEGOTIABLE_LOCKS_TO_STEPS:
+    - lock: "ports_lock (web=2000, api=7000)"
+      guarded_in: ["STEP-010"]
+    - lock: "directory_contract (required paths)"
+      guarded_in: ["STEP-010", "STEP-130"]
+    - lock: "observability (X-Request-Id / error_envelope / /health keys)"
+      guarded_in: ["STEP-010", "STEP-130"]
+    - lock: "pagination_contract (offset/limit + items/page shape)"
+      guarded_in: ["STEP-010", "STEP-040", "STEP-050", "STEP-120", "STEP-130"]
+    - lock: "prompt_pack_schema_lock (raw_input/final_prompt required; assembly optional; assembly_used explicit)"
+      guarded_in: ["STEP-060", "STEP-110", "STEP-130"]
+    - lock: "characters confirmed threshold (>=8) + ref_set versioning"
+      guarded_in: ["STEP-050", "STEP-100", "STEP-130"]
+    - lock: "provider settings policy (front-open/back-controlled; secrets redaction; default inheritance)"
+      guarded_in: ["STEP-030", "STEP-040", "STEP-090", "STEP-130"]
+
+  CONFLICT_DOMAIN_SPLIT:
+    - domain: "observability_contract"
+      steps: ["STEP-010", "STEP-130"]
+    - domain: "data_model"
+      steps: ["STEP-020"]
+    - domain: "api_contract / api_routes"
+      steps: ["STEP-030", "STEP-040", "STEP-050", "STEP-060", "STEP-070"]
+    - domain: "ui_routes"
+      steps: ["STEP-080"]
+    - domain: "ui_components"
+      steps: ["STEP-090", "STEP-100", "STEP-110", "STEP-120"]
+    - domain: "gates + docs"
+      steps: ["STEP-130", "STEP-140"]
+
+MASTER_PLAN:
+  version: "1.1.0"
+  status: "draft"
+  ordering_heuristics_enforced: ["O1", "O2", "O3", "O4", "O5"]
+  step_constraints:
+    preferred_touched_files: "<=10 per step"
+    merge_policy: "Each step must be independently mergeable and independently verifiable"
+    rollback_policy: "Each step must define a rollback strategy that returns gates to last-green"
+
+  steps:
+    - id: "STEP-010"
+      order: 10
+      title: "V1 基线门禁复跑 + v1.1 契约校验（O1）"
+      priority: "P0"
+      conflict_domain: "observability_contract + gates"
+      depends_on: []
+      scope_refs: ["ARCH:observability", "ARCH:ports_lock", "ARCH:directory_contract"]
+      goal: "建立 v1.1 开发的统一验证基线：确保 v1 不回归，并让 v1.1 新契约可被持续检测。"
+      touched_areas:
+        - "仅验证与证据记录（不引入新业务能力）"
+      entry_exit:
+        entry:
+          - "API 可在 7000 启动；Web 可在 2000 启动"
+          - "现有 preflight/health/request-id/error envelope 基线能力存在"
+        exit:
+          - "preflight gates 全绿并记录 baseline commit（作为回滚锚点）"
+          - "输出包含 /health keys、X-Request-Id、error_envelope、/openapi.json 可达"
+      verification:
+        commands:
+          - "bash scripts/gate_all.sh --mode=preflight"
+          - "bash scripts/gate_api_smoke.sh"
+          - "bash scripts/gate_health_contract_check.sh"
+          - "bash scripts/gate_request_id_propagation_check.sh"
+        expected_results:
+          - "[ok] /health keys present: status, version, db, storage, last_error_summary"
+          - "[ok] header present: X-Request-Id (non-empty) on success and error paths"
+          - "[ok] /openapi.json reachable"
+          - "[ok] error envelope includes: error, message, request_id, details"
+        artifacts:
+          - "docs/EVIDENCE_P0_FULL.md（追加：本步骤 preflight 证据）"
+      rollback_strategy:
+        - "回到本步骤开始时记录的 last-green baseline（VCS revert/rebase 到锚点）"
+        - "必要时重建本地 DB（避免把数据污染误判为代码缺陷）"
+
+    - id: "STEP-020"
+      order: 20
+      title: "数据模型与迁移：Characters + ProviderProfiles（O2）"
+      priority: "P0"
+      conflict_domain: "data_model"
+      depends_on: ["STEP-010"]
+      scope_refs:
+        - "ARCH:data_model_lock.tables.characters"
+        - "ARCH:data_model_lock.tables.character_ref_sets"
+        - "ARCH:data_model_lock.tables.provider_profiles"
+        - "ARCH:Links as SSOT (relationship_lock)"
+      goal: "引入 v1.1 新实体的存储骨架与迁移，不破坏 v1 数据与 append-only 语义。"
+      touched_areas:
+        - "DB migrations"
+        - "SQLModel/Schema: characters, character_ref_sets, provider_profiles"
+        - "默认唯一约束策略（is_global_default at most one）"
+      entry_exit:
+        entry:
+          - "STEP-010 完成且 gates 绿"
+          - "迁移体系可用（gate_models.sh 可运行）"
+        exit:
+          - "迁移可应用且不破坏 v1 数据"
+          - "新表可查询；为后续 API/UI 提供稳定 schema"
+      verification:
+        commands:
+          - "bash scripts/gate_models.sh"
+          - "bash scripts/gate_api_smoke.sh"
+        expected_results:
+          - "[ok] migrations apply cleanly (no missing tables)"
+          - "[ok] /health ok after migration"
+      rollback_strategy:
+        - "VCS 回滚本步骤迁移与模型变更；本地 DB 通过重建回到回滚后的 schema"
+
+    - id: "STEP-030"
+      order: 30
+      title: "ProviderType 注册表与 /provider_types 合约（O3）"
+      priority: "P0"
+      conflict_domain: "api_contract / api_routes"
+      depends_on: ["STEP-020"]
+      scope_refs: ["AC-010", "ARCH:endpoints_lock(/provider_types)", "ARCH:provider settings policy"]
+      goal: "实现后端控制的 ProviderType 支持清单 + 字段语义，为前端 Settings 动态渲染表单提供唯一真源。"
+      touched_areas:
+        - "API: GET /provider_types"
+        - "ProviderType registry（server-side）"
+        - "OpenAPI 更新"
+      entry_exit:
+        entry:
+          - "STEP-020 完成；API 可启动"
+        exit:
+          - "/provider_types HTTP 200"
+          - "响应包含 provider_type 列表与字段 schema（含 secret 标记语义）"
+      verification:
+        commands:
+          - "curl -s -o /dev/null -w \"%{http_code}\\n\" http://127.0.0.1:7000/provider_types"
+          - "curl -s http://127.0.0.1:7000/openapi.json | head -n 1"
+        expected_results:
+          - "provider_types 返回 200"
+          - "openapi.json 可达（并包含 provider_types 路径）"
+      rollback_strategy:
+        - "VCS 回滚该端点与注册表变更；确保 /openapi.json 与 gate_api_smoke 回到 STEP-020 状态"
+
+    - id: "STEP-040"
+      order: 40
+      title: "ProviderProfiles API：CRUD + 默认 + secrets 脱敏（O3）"
+      priority: "P0"
+      conflict_domain: "api_contract / api_routes"
+      depends_on: ["STEP-020", "STEP-030"]
+      scope_refs: ["AC-010", "ARCH:pagination_contract", "ARCH:endpoints_lock(/provider_profiles*)", "ARCH:secrets redaction policy"]
+      goal: "实现 ProviderProfile 全链路 API，并严格执行 secret 永不明文回显与全局默认唯一。"
+      touched_areas:
+        - "API: /provider_profiles（GET/POST/PATCH/DELETE）"
+        - "API: /provider_profiles/{id}/set_default"
+        - "脱敏返回（secret 明文不回显；显示“已配置”状态）"
+        - "分页 shape 固化（items + page{limit,offset,total,has_more}）"
+      entry_exit:
+        entry:
+          - "STEP-030 完成；ProviderType registry 可用"
+        exit:
+          - "ProviderProfiles CRUD 可用"
+          - "set_default 后全局默认唯一"
+          - "GET/列表返回不包含 secret 明文"
+      verification:
+        commands:
+          - "bash scripts/gate_api_smoke.sh"
+          - "curl -s -o /dev/null -w \"%{http_code}\\n\" \"http://127.0.0.1:7000/provider_profiles?offset=0&limit=10\""
+          - "curl -s -o /dev/null -w \"%{http_code}\\n\" http://127.0.0.1:7000/provider_profiles"
+        expected_results:
+          - "provider_profiles 列表返回 200，且响应包含 items/page"
+          - "错误路径返回 error envelope 且含 request_id（由 gate_api_smoke 覆盖）"
+      rollback_strategy:
+        - "VCS 回滚 ProviderProfiles 路由/逻辑；必要时重建本地 DB 清理已写入 profile 数据"
+
+    - id: "STEP-050"
+      order: 50
+      title: "Characters API：角色 CRUD + ref_set 版本化 + 引用资产（O3）"
+      priority: "P0"
+      conflict_domain: "api_contract / api_routes"
+      depends_on: ["STEP-020"]
+      scope_refs:
+        - "AC-007"
+        - "ARCH:endpoints_lock(/characters*, /ref_sets*, /refs)"
+        - "ARCH:characters confirmed threshold (>=8)"
+        - "ARCH:relationship_lock (character↔ref_set, ref_set↔asset)"
+      goal: "实现角色库与参考集版本化，并冻结 confirmed 门槛（>=8）与追溯关系语义。"
+      touched_areas:
+        - "API: /characters（分页 + 状态过滤）"
+        - "API: /characters/{id}（详情 + PATCH）"
+        - "API: /characters/{id}/ref_sets（创建版本）"
+        - "API: /characters/{id}/ref_sets/{ref_set_id}/refs（添加引用资产）"
+      entry_exit:
+        entry:
+          - "STEP-020 完成；Assets/Links 基线可用"
+        exit:
+          - "角色可创建/更新状态（draft/confirmed/archived）"
+          - "ref_set 可版本化；confirmed 必须满足 >=8 引用资产，否则返回 error envelope + request_id"
+      verification:
+        commands:
+          - "bash scripts/gate_api_smoke.sh"
+          - "curl -s -o /dev/null -w \"%{http_code}\\n\" \"http://127.0.0.1:7000/characters?offset=0&limit=10\""
+        expected_results:
+          - "/characters 列表返回 200 且分页 shape 正确"
+          - "confirmed 门槛失败时返回 error envelope + request_id（由后续专用 gate 补强）"
+      rollback_strategy:
+        - "VCS 回滚 Characters 路由/逻辑；必要时重建本地 DB 清理角色数据"
+
+    - id: "STEP-060"
+      order: 60
+      title: "Runs：PromptPack schema + Characters 选择 + Provider 解析证据（O3/O4）"
+      priority: "P0"
+      conflict_domain: "api_contract / api_routes"
+      depends_on: ["STEP-040", "STEP-050"]
+      scope_refs:
+        - "AC-003"
+        - "AC-007"
+        - "AC-008"
+        - "ARCH:prompt_pack_schema_lock"
+        - "ARCH:run_create_contract_lock invariants"
+        - "ARCH:relationship_lock (run→prompt_pack, run→character, run→character_ref_set)"
+      goal: "增强 /runs 创建契约：冻结 PromptPack 语义，支持角色选择并强制 primary 唯一，记录 resolved provider profile 与 character_ref_set evidence。"
+      touched_areas:
+        - "POST /runs：prompt_pack 校验（raw_input/final_prompt 必有；assembly 可选；assembly_used 显式）"
+        - "POST /runs：characters 0..N + primary 唯一；记录 uses_character / uses_character_ref_set"
+        - "POST /runs：resolved_provider_profile_id 必须写入 evidence（run.input_json 或等价字段）"
+      entry_exit:
+        entry:
+          - "ProviderProfiles 与 Characters API 可用"
+        exit:
+          - "创建 run 时 prompt_pack 校验严格生效（含 assembly_used 规则）"
+          - "角色 primary 违反唯一性时返回 error envelope + request_id"
+          - "resolved_provider_profile_id 与 character_ref_set_id 被记录用于追溯"
+      verification:
+        commands:
+          - "bash scripts/gate_api_smoke.sh"
+          - "bash scripts/gate_all.sh --mode=api  #（若存在该子模式；否则使用 full 于 STEP-140 统一验收）"
+        expected_results:
+          - "runs 创建成功路径可追溯到 prompt_pack"
+          - "失败路径包含 error envelope + request_id"
+      rollback_strategy:
+        - "VCS 回滚 runs 契约增强；必要时重建本地 DB 清理混合版本 prompt_pack/run 数据"
+
+    - id: "STEP-070"
+      order: 70
+      title: "资产详情追溯扩展：PromptChain + Provider + Character/ref_set（O4）"
+      priority: "P0"
+      conflict_domain: "api_contract / api_routes"
+      depends_on: ["STEP-060"]
+      scope_refs: ["AC-002", "AC-007", "AC-008", "NFR:traceability", "ARCH:Links as SSOT"]
+      goal: "扩展 /assets/{asset_id} 详情：从 Asset 可反查 PromptChain、Run、Review、ProviderProfile、Character/ref_set（若存在）。"
+      touched_areas:
+        - "GET /assets/{asset_id} 响应扩展（以 links 关系为唯一真源）"
+      entry_exit:
+        entry:
+          - "STEP-060 完成；可产出带链路的 run/asset"
+        exit:
+          - "AssetDetail 包含 PromptPack(raw/assembly/final)、Run、Review 摘要"
+          - "若存在 uses_character/provider_profile，则详情可见并可定位"
+      verification:
+        commands:
+          - "bash scripts/gate_assets_read.sh"
+          - "bash scripts/gate_all.sh --mode=api"
+        expected_results:
+          - "资产详情字段扩展不破坏既有字段"
+          - "错误仍遵守 error envelope + request_id"
+      rollback_strategy:
+        - "VCS 回滚资产详情扩展逻辑；前端必须容错（字段缺失不崩溃）"
+
+    - id: "STEP-080"
+      order: 80
+      title: "UI IA：新增 /characters 与 /settings 路由骨架（O3→O4 桥接）"
+      priority: "P0"
+      conflict_domain: "ui_routes"
+      depends_on: ["STEP-010"]
+      scope_refs: ["ARCH:ui_contract.required_routes", "ARCH:app_shell_lock"]
+      goal: "补齐 IA lock 要求路由：/characters、/characters/:id、/settings（可占位但必须可访问且不破坏 v1 路由）。"
+      touched_areas:
+        - "Next.js app routes"
+        - "Sidebar/导航入口（若 IA lock 要求）"
+      entry_exit:
+        entry:
+          - "Web 可启动；v1 路由门禁可运行"
+        exit:
+          - "新增路由 HTTP 200"
+          - "App Shell 一致；缺数据时可占位显示"
+      verification:
+        commands:
+          - "curl -s -o /dev/null -w \"%{http_code}\\n\" http://127.0.0.1:2000/characters"
+          - "curl -s -o /dev/null -w \"%{http_code}\\n\" http://127.0.0.1:2000/settings"
+          - "bash scripts/gate_web_routes.sh"
+        expected_results:
+          - "/characters 与 /settings 返回 200"
+          - "既有 routes 无回归"
+      rollback_strategy:
+        - "VCS 回滚新增路由；如 IA lock 强制存在路由，则保留占位并移除入口（软回滚）"
+
+    - id: "STEP-090"
+      order: 90
+      title: "Settings UI：ProviderProfiles 管理（新增/编辑/默认/脱敏显示）（O4）"
+      priority: "P0"
+      conflict_domain: "ui_components"
+      depends_on: ["STEP-040", "STEP-080"]
+      scope_refs: ["AC-010", "ARCH:provider settings policy", "NFR:usability"]
+      goal: "实现 /settings 的 ProviderProfiles 管理：动态表单（基于 /provider_types 语义）、secret 字段不回显、默认设置与分页列表。"
+      touched_areas:
+        - "Settings 页面 UI 与表单校验"
+        - "API 集成：/provider_types + /provider_profiles"
+      entry_exit:
+        entry:
+          - "ProviderProfiles API 可用；/settings 路由可访问"
+        exit:
+          - "可新增/编辑/删除/设默认 ProviderProfile"
+          - "secret 明文不回显（仅显示已配置状态）"
+      verification:
+        commands:
+          - "bash scripts/gate_all.sh --mode=ui  #（若存在该子模式；否则 STEP-140 full 验收）"
+        expected_results:
+          - "Settings 页面可完成 ProviderProfiles 管理闭环"
+          - "错误提示包含 request_id（来自 API error envelope）"
+      rollback_strategy:
+        - "VCS 回滚 Settings UI；保留占位路由满足 IA lock"
+
+    - id: "STEP-100"
+      order: 100
+      title: "Characters UI：角色库 + ref_set 版本化 + 引用资产选择（O4）"
+      priority: "P0"
+      conflict_domain: "ui_components"
+      depends_on: ["STEP-050", "STEP-080"]
+      scope_refs: ["AC-007", "ARCH:characters confirmed threshold (>=8)", "ARCH:ui_contract.required_routes"]
+      goal: "实现 /characters：列表与详情、ref_set 版本化、从 Library 选择资产作为参考、confirmed 门槛提示与校验反馈。"
+      touched_areas:
+        - "Characters 列表（分页 + 状态过滤）"
+        - "Characters 详情（ref_set 版本化 + 引用资产管理）"
+        - "Library 资产选择器（复用/抽象为共用组件）"
+      entry_exit:
+        entry:
+          - "Characters API 可用；/characters 路由可访问；Library 基线可用"
+        exit:
+          - ">=8 引用资产时可确认并形成 active_ref_set"
+          - "不足门槛时阻止或显示后端错误（error envelope + request_id）"
+      verification:
+        commands:
+          - "bash scripts/gate_all.sh --mode=ui"
+        expected_results:
+          - "Characters UI 闭环可操作且符合 confirmed 门槛规则"
+      rollback_strategy:
+        - "VCS 回滚 Characters UI；保留占位路由满足 IA lock"
+
+    - id: "STEP-110"
+      order: 110
+      title: "Generate UI：PromptChain（组装可选）+ Characters 选择 + Provider 继承/覆写（O4）"
+      priority: "P0"
+      conflict_domain: "ui_components"
+      depends_on: ["STEP-060", "STEP-090", "STEP-100"]
+      scope_refs: ["AC-003", "AC-007", "AC-008", "AC-010", "ARCH:generate_ui_lock"]
+      goal: "升级 /generate：raw/assembly/final 展示与编辑；characters 选择 + primary；provider 继承链展示与单次覆写；提交 run 并展示 status/review/trace。"
+      touched_areas:
+        - "Generate 表单（t2i/i2i/t2v/i2v）"
+        - "PromptChain 显示规则（assembly_used=false 时明确标记未使用）"
+        - "Characters selector 与 provider selector"
+        - "Trace 面板（run/review/characters/provider）"
+      entry_exit:
+        entry:
+          - "Runs 契约增强已实现；Settings 与 Characters UI 可操作"
+        exit:
+          - "4 类入口均可发起；成功结果入库为 Asset"
+          - "Asset 详情可追溯 prompt_pack/run/review/character/provider"
+      verification:
+        commands:
+          - "bash scripts/gate_all.sh --mode=full  #（最终在 STEP-140 作为硬验收）"
+        expected_results:
+          - "Generate 端到端 happy path 可跑通"
+          - "失败路径 request_id 可见且可追溯"
+      rollback_strategy:
+        - "VCS 回滚 Generate UI 增强；保留最小生成表单作为降级路径"
+
+    - id: "STEP-120"
+      order: 120
+      title: "Library & AssetDetail UI：筛选/排序 + Evidence Chain 展示扩展（O4/O5）"
+      priority: "P0"
+      conflict_domain: "ui_components"
+      depends_on: ["STEP-070", "STEP-110"]
+      scope_refs: ["AC-001", "AC-002", "ARCH:pagination_contract", "NFR:performance_defaults"]
+      goal: "完成 Library 全局总览与筛选/排序（至少 4 维），并在资产详情展示完整 Evidence Chain（含新增链路）。"
+      touched_areas:
+        - "Library 列表筛选/排序（类型/来源/时间/状态）"
+        - "AssetDetail evidence chain UI 展示扩展"
+      entry_exit:
+        entry:
+          - "资产详情 API 已扩展；Generate 可产出带链路资产"
+        exit:
+          - "Library 满足 AC-001；AssetDetail 满足 AC-002"
+          - "交互有可见的快速反馈（<=1s 级别：加载态/骨架屏可计入）"
+      verification:
+        commands:
+          - "bash scripts/gate_all.sh --mode=full"
+        expected_results:
+          - "Library/AssetDetail 回归通过；分页 shape 正确；错误可见 request_id"
+      rollback_strategy:
+        - "VCS 回滚筛选与详情 UI 扩展；保持最小列表/详情不回归"
+
+    - id: "STEP-130"
+      order: 130
+      title: "门禁与交接：新增 Characters/Provider/PromptChain gates + 更新证据文档（收口）"
+      priority: "P1"
+      conflict_domain: "gates + docs"
+      depends_on: ["STEP-040", "STEP-050", "STEP-060", "STEP-090", "STEP-100", "STEP-110", "STEP-120"]
+      scope_refs: ["O1..O5", "Docs/Handoff requirements"]
+      goal: "为 v1.1 新增能力提供 machine-checkable gates，并更新 EVIDENCE/HANDOFF，确保可重复验收与可持续开发。"
+      touched_areas:
+        - "scripts/gate_*.sh（新增/升级并入 gate_all --mode=full）"
+        - "docs/EVIDENCE_P0_FULL.md（按 AC 记录证据）"
+        - "docs/HANDOFF_P0_CUMULATIVE.md（补齐 v1.1 新增面）"
+      entry_exit:
+        entry:
+          - "主要功能已实现且可端到端跑通"
+        exit:
+          - "新增 gates 稳定复跑并并入 full 模式"
+          - "文档记录：验证命令 + 预期输出 + 故障定位要点"
+      verification:
+        commands:
+          - "bash scripts/gate_all.sh --mode=full"
+        expected_results:
+          - "All gates pass；失败时仍打印 error envelope + request_id（日志可见）"
+      rollback_strategy:
+        - "若新 gate 不稳定：可先从 full 模式移出并标记为 experimental（不阻断主线），同时在 docs 记录原因与修复点"
+        - "VCS 回滚 gate/docs 不应影响核心功能；至少 preflight gates 仍全绿"
+
+    - id: "STEP-140"
+      order: 140
+      title: "Release Candidate：AC-001..AC-010 全量验收 + 回归（最终收口）"
+      priority: "P1"
+      conflict_domain: "gates + docs"
+      depends_on: ["STEP-130"]
+      scope_refs: ["AC-001..AC-010"]
+      goal: "以可重复的证据链完成 v1.1 验收：覆盖所有 P0 AC 与 P1 AC-010；确保 v1 能力无回归。"
+      touched_areas:
+        - "全量 gate suite + 证据链闭合"
+      entry_exit:
+        entry:
+          - "full gates 已包含 v1.1 新增 gates；环境可稳定启动"
+        exit:
+          - "AC-001..AC-010 证据齐全；gate_all --mode=full 全绿"
+          - "handoff 文档可支撑下一窗口继续开发/维护"
+      verification:
+        commands:
+          - "bash scripts/gate_all.sh --mode=full"
+        expected_results:
+          - "All [ok] across preflight + api + ui + export/import + characters + settings + promptchain"
+      rollback_strategy:
+        - "若 RC 失败：按失败所属 conflict_domain 回滚到最近一个 full gates 通过的合并点（VCS revert）；优先保证 preflight 与核心链路可用"
+        - "对 DB 状态不确定时：优先通过重建本地 DB 复现，避免把数据污染误判为代码缺陷"

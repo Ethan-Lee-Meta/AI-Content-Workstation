@@ -1,0 +1,457 @@
+# ARCH_DIGEST.yaml — AI Content Workstation (v1.1.0, frozen)
+# SSOT inputs: AI_SPECDIGEST v1.1.0 (frozen) + 需求摘要（final）.md + PROJECT_ANALYSIS.md
+ARCH_DIGEST:
+  meta:
+    artifact_id: "arch-ai-content-workstation"
+    arch_version: "1.1.0"
+    status: "frozen"
+    generated_utc: "2026-01-01T00:00:00Z"
+    project:
+      name: "<PROJECT_NAME>"
+      repo: "<REPO_URL_OR_NA>"
+    baseline:
+      repo_commit: "<GIT_SHA_OR_NA>"
+    inputs_fingerprints:
+      AI_SPECDIGEST:
+        version: "1.1.0"
+        status: "frozen"
+        sha256: "cc7c290224a37ef3b92bc797de37e8e0148e7107959c8e1bf3e5373aeabf51a3"
+      REQ_CONTRACT_SUMMARY:
+        present: true
+        sha256: "5dcf49e5b47acc255a715c1fa346b43fae9186b56ec08f0e8bb930d024e3dcad"
+      PROJECT_ANALYSIS_V1:
+        present: true
+        sha256: "33360d40ac1ecee3b9ca97e032710e9d5b218e5ba3eca9127478f649aa9a8d2a"
+    outputs_fingerprints:
+      ARCH_DIGEST:
+        version: "1.1.0"
+        status: "frozen"
+        sha256: "<TBD: computed by gate/CI>"
+      ARCH_CONTRACT_SUMMARY:
+        version: "1.1.0"
+        status: "final"
+        sha256: "d0f06d7965c18479118bdb5653635e8b421fa4d5b1ba7871e3e10f78f68fc2bb"
+
+  stack_lock:
+    backend:
+      language: "Python"
+      python_version: "3.x (venv required; pin exact in repo tooling)"
+      framework: "FastAPI 0.115.0"
+      server: "Uvicorn 0.30.6"
+      orm_migrations: "SQLAlchemy + Alembic"
+      db: "SQLite (local-first)"
+    frontend:
+      framework: "Next.js 16.1.0 (App Router)"
+      ui: "React 18.3.1"
+      language: "JavaScript/JSX"
+    storage:
+      local_fs: true
+      db_file: "./data/app.db"
+      blob_root: "./data/storage"
+      exports_root: "./data/exports"
+      imports_root: "./data/imports"
+
+  ports_lock:
+    local:
+      web_dev_server: 2000
+      api_server: 7000
+
+  directory_contract:
+    repo_root_name: "ai-content-workstation"
+    required_paths:
+      - "apps/api/app/main.py"
+      - "apps/api/app/core/"
+      - "apps/api/app/modules/"
+      - "apps/api/migrations/"
+      - "apps/web/app/"
+      - "apps/web/app/_components/"
+      - "apps/web/app/_lib/"
+      - "apps/web/app/api_proxy/"
+      - "data/"
+      - "docs/"
+      - "scripts/"
+      - "tmp/"
+    data_roots:
+      - "./data/app.db"
+      - "./data/storage/"
+      - "./data/exports/"
+      - "./data/imports/"
+    tmp_semantics:
+      allowed: true
+      must_be_regenerable: true
+
+  runtime_and_env:
+    required_env:
+      DATABASE_URL:
+        default: "sqlite:///./data/app.db"
+      STORAGE_ROOT:
+        default: "./data/storage"
+      APP_VERSION:
+        default: "0.1.0"
+    feature_flags:
+      PROVIDER_ENABLED:
+        default: "0"
+        meaning: "ProviderAdapter 执行开关（0=仅入队/不实际生成；1=执行生成）"
+      EXPORT_IMPORT_ENABLED:
+        default: "1"
+        meaning: "导出/导入 API 开关"
+      EXPORT_IMPORT_UI_ENABLED:
+        default: "1"
+        meaning: "导出/导入 UI 开关"
+    ui_settings:
+      localization:
+        supported_locales: ["zh-CN", "en-US"]
+        fallback_locale: "zh-CN"
+      theme_density:
+        themes: ["Light", "Dark"]
+        density: ["Comfortable", "Compact"]
+        default:
+          theme: "Light"
+          density: "Comfortable"
+
+  observability:
+    request_id:
+      header_in: "X-Request-Id"
+      header_out: "X-Request-Id"
+      behavior:
+        - "若请求未携带 X-Request-Id，服务端生成并回写响应头"
+        - "错误响应必须回写 X-Request-Id"
+    error_envelope:
+      required_keys: ["error", "message", "request_id", "details"]
+      conventions:
+        - "error 为稳定的 error_code（snake_case）"
+        - "details 为 object，可为空对象"
+    health_contract:
+      endpoint: "/health"
+      response_keys: ["status", "version", "db", "storage", "last_error_summary"]
+      db_object_min_keys: ["status", "kind", "path"]
+      storage_object_min_keys: ["status", "root"]
+
+  pagination_contract:
+    query_params:
+      offset: { type: "int", default: 0, min: 0 }
+      limit: { type: "int", default: 50, min: 1, max: 200 }
+    response_shape:
+      required_keys: ["items", "page"]
+      page_required_keys: ["limit", "offset", "total", "has_more"]
+
+  data_model_lock:
+    invariants:
+      local_single_user: true
+      append_only_tables:
+        - "prompt_packs"
+        - "runs"
+        - "run_events"
+        - "reviews"
+        - "links"
+        - "character_ref_sets"
+      soft_delete_tables:
+        - "assets"
+      links_is_ssot_for_relations: true
+      link_tombstone_semantics:
+        pattern: "unlink::<rel>"
+        meaning: "用追加 tombstone 取消之前有效关联（不可 UPDATE/DELETE links）"
+    tables:
+      assets:
+        purpose: "统一资产库（图/视频），支持软删除与全局展示"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "kind", type: "TEXT", note: "image|video|..." }
+          - { name: "uri", type: "TEXT" }
+          - { name: "mime_type", type: "TEXT" }
+          - { name: "sha256", type: "TEXT" }
+          - { name: "width", type: "INTEGER", nullable: true }
+          - { name: "height", type: "INTEGER", nullable: true }
+          - { name: "duration_ms", type: "INTEGER", nullable: true }
+          - { name: "meta_json", type: "TEXT", note: "JSON string; include usage tags if needed" }
+          - { name: "project_id", type: "TEXT", nullable: true }
+          - { name: "series_id", type: "TEXT", nullable: true }
+          - { name: "created_at", type: "TEXT" }
+          - { name: "deleted_at", type: "TEXT", nullable: true }
+
+      prompt_packs:
+        purpose: "PromptPack 不可变快照（证据链关键节点）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "name", type: "TEXT" }
+          - { name: "content", type: "TEXT", note: "JSON string (see prompt_pack_schema_lock)" }
+          - { name: "digest", type: "TEXT" }
+          - { name: "created_at", type: "TEXT" }
+
+      runs:
+        purpose: "生成任务（append-only），状态以 run_events 最新事件覆盖"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "prompt_pack_id", type: "TEXT", fk: "prompt_packs.id" }
+          - { name: "status", type: "TEXT", note: "queued|running|succeeded|failed (effective via run_events)" }
+          - { name: "input_json", type: "TEXT", note: "JSON string; MUST record resolved provider_profile_id + selected characters" }
+          - { name: "output_json", type: "TEXT", note: "JSON string; result refs" }
+          - { name: "created_at", type: "TEXT" }
+
+      run_events:
+        purpose: "状态迁移事件（append-only）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "run_id", type: "TEXT", fk: "runs.id" }
+          - { name: "status", type: "TEXT", note: "running|succeeded|failed" }
+          - { name: "result_refs", type: "TEXT", note: "JSON string" }
+          - { name: "request_id", type: "TEXT" }
+          - { name: "created_at", type: "TEXT" }
+
+      reviews:
+        purpose: "量化审核（append-only）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "run_id", type: "TEXT", fk: "runs.id" }
+          - { name: "face_consistency_score", type: "REAL" }
+          - { name: "style_consistency_score", type: "REAL" }
+          - { name: "quality_score", type: "REAL" }
+          - { name: "overall_pass", type: "INTEGER", note: "0|1" }
+          - { name: "reasons_json", type: "TEXT", note: "JSON string array" }
+          - { name: "policy_json", type: "TEXT", note: "record auto-pass / sampling / override metadata" }
+          - { name: "created_at", type: "TEXT" }
+
+      links:
+        purpose: "跨实体关系唯一事实来源（SSOT）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "src_type", type: "TEXT" }
+          - { name: "src_id", type: "TEXT" }
+          - { name: "dst_type", type: "TEXT" }
+          - { name: "dst_id", type: "TEXT" }
+          - { name: "rel", type: "TEXT" }
+          - { name: "created_at", type: "TEXT" }
+
+      projects:
+        purpose: "Project（容器；当前可占位）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "name", type: "TEXT" }
+          - { name: "created_at", type: "TEXT" }
+        optional_fields_for_v1_1:
+          - { name: "default_provider_profile_id", type: "TEXT", nullable: true }
+
+      series:
+        purpose: "Series（工作区；当前可占位）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "project_id", type: "TEXT", nullable: true }
+          - { name: "name", type: "TEXT" }
+          - { name: "created_at", type: "TEXT" }
+        optional_fields_for_v1_1:
+          - { name: "default_provider_profile_id", type: "TEXT", nullable: true }
+
+      shots:
+        purpose: "Shot 编排（引用关系容器）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "project_id", type: "TEXT", nullable: true }
+          - { name: "series_id", type: "TEXT", nullable: true }
+          - { name: "name", type: "TEXT" }
+          - { name: "created_at", type: "TEXT" }
+
+      characters:
+        purpose: "角色库（Character 实体）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "name", type: "TEXT" }
+          - { name: "status", type: "TEXT", note: "draft|confirmed|archived" }
+          - { name: "active_ref_set_id", type: "TEXT", nullable: true, note: "指向当前生效参考集版本" }
+          - { name: "created_at", type: "TEXT" }
+          - { name: "updated_at", type: "TEXT" }
+
+      character_ref_sets:
+        purpose: "角色参考集版本（append-only；用于追溯）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "character_id", type: "TEXT", fk: "characters.id" }
+          - { name: "version", type: "INTEGER", note: "1..n" }
+          - { name: "status", type: "TEXT", note: "draft|confirmed|archived" }
+          - { name: "min_requirements_snapshot_json", type: "TEXT", note: "记录当时门槛（≥8/推荐12等）" }
+          - { name: "created_at", type: "TEXT" }
+
+      provider_profiles:
+        purpose: "ProviderProfile（配置实例；Settings 可增删改设默认）"
+        required_fields:
+          - { name: "id", type: "TEXT", pk: true }
+          - { name: "name", type: "TEXT" }
+          - { name: "provider_type", type: "TEXT", note: "from ProviderType registry" }
+          - { name: "config_json", type: "TEXT", note: "JSON; secrets stored but NEVER returned in plaintext" }
+          - { name: "secrets_redaction_policy_json", type: "TEXT", note: "哪些字段为 secret（用于输出脱敏）" }
+          - { name: "is_global_default", type: "INTEGER", note: "0|1 (at most one true)" }
+          - { name: "created_at", type: "TEXT" }
+          - { name: "updated_at", type: "TEXT" }
+
+    prompt_pack_schema_lock:
+      purpose: "冻结 prompt 链路语义：raw_input（必有）→ assembly_prompt（可选）→ final_prompt（必有）"
+      required_shape:
+        keys:
+          - "raw_input"
+          - "final_prompt"
+          - "assembly_prompt"
+          - "assembly_used"
+          - "prompt_kind"
+          - "inputs"
+          - "template_refs"
+      rules:
+        - "raw_input MUST be non-empty string"
+        - "final_prompt MUST be non-empty string"
+        - "assembly_prompt MAY be null/absent; if absent, assembly_used=false"
+        - "if assembly_used=true then assembly_prompt MUST be present and non-empty"
+        - "PromptPack is immutable snapshot (append-only)"
+
+    relationship_lock:
+      required_links:
+        - { src_type: "run", dst_type: "prompt_pack", rel: "uses_prompt_pack" }
+        - { src_type: "run", dst_type: "asset", rel: "produced_asset" }
+        - { src_type: "run", dst_type: "review", rel: "has_review" }
+        - { src_type: "character", dst_type: "character_ref_set", rel: "has_ref_set_version" }
+        - { src_type: "character_ref_set", dst_type: "asset", rel: "includes_reference_asset" }
+        - { src_type: "run", dst_type: "character", rel: "uses_character" }
+        - { src_type: "run", dst_type: "character_ref_set", rel: "uses_character_ref_set" }
+      semantics:
+        - "Run 选择 0..N Character，必须标记 primary_character（见 run_create_contract_lock）"
+        - "Run 必须记录当次使用的 character_ref_set_id（用于追溯与一致性评估）"
+
+  api_contract_addendum:
+    base:
+      protocol: "HTTP/JSON"
+      api_base_url_default: "http://127.0.0.1:7000"
+      openapi: "/openapi.json"
+      health: "/health"
+    global_response_contracts:
+      error_envelope: { required_keys_ref: "observability.error_envelope.required_keys" }
+      pagination: { required_shape_ref: "pagination_contract.response_shape" }
+    endpoints_lock:
+      - { method: "GET", path: "/assets", purpose: "资产列表（分页；include_deleted 可选）" }
+      - { method: "GET", path: "/assets/{asset_id}", purpose: "资产详情（Evidence Chain + Links 追溯）" }
+      - { method: "DELETE", path: "/assets/{asset_id}", purpose: "软删除（幂等）" }
+
+      - { method: "POST", path: "/runs", purpose: "创建生成任务（t2i/i2i/t2v/i2v）" }
+      - { method: "GET", path: "/runs/{run_id}", purpose: "查询任务状态与结果（effective by run_events）" }
+
+      - { method: "POST", path: "/reviews", purpose: "创建审核记录（自动/抽检/覆写）" }
+      - { method: "GET", path: "/reviews/{review_id}", purpose: "审核详情（可追溯）" }
+
+      - { method: "GET", path: "/shots", purpose: "Shot 列表（可按 project/series 过滤）" }
+      - { method: "GET", path: "/shots/{shot_id}", purpose: "Shot 详情（含有效 links）" }
+      - { method: "POST", path: "/shots/{shot_id}/links", purpose: "创建关联（SSOT）" }
+      - { method: "DELETE", path: "/shots/{shot_id}/links/{link_id}", purpose: "取消关联（tombstone）" }
+
+      - { method: "POST", path: "/trash/empty", purpose: "清空回收站（物理删除 assets）" }
+
+      - { method: "POST", path: "/exports", purpose: "创建导出目录包（可加密）" }
+      - { method: "GET", path: "/exports/{export_id}", purpose: "导出记录" }
+      - { method: "GET", path: "/exports/{export_id}/manifest", purpose: "无导入预览 manifest" }
+      - { method: "POST", path: "/imports", purpose: "导入目录包（默认 create_new_ids=true）" }
+      - { method: "GET", path: "/imports/{import_id}", purpose: "导入记录" }
+
+      - { method: "GET", path: "/characters", purpose: "角色列表（分页；按状态过滤）" }
+      - { method: "POST", path: "/characters", purpose: "创建角色（draft）" }
+      - { method: "GET", path: "/characters/{character_id}", purpose: "角色详情（含 active_ref_set + refs）" }
+      - { method: "PATCH", path: "/characters/{character_id}", purpose: "更新角色（name/status/active_ref_set_id）" }
+      - { method: "POST", path: "/characters/{character_id}/ref_sets", purpose: "创建参考集版本（draft/confirmed）" }
+      - { method: "GET", path: "/characters/{character_id}/ref_sets/{ref_set_id}", purpose: "参考集详情（含引用资产列表）" }
+      - { method: "POST", path: "/characters/{character_id}/ref_sets/{ref_set_id}/refs", purpose: "向参考集添加引用资产（asset_id）" }
+
+      - { method: "GET", path: "/provider_types", purpose: "ProviderType 支持清单 + 配置项语义描述（后端控制）" }
+      - { method: "GET", path: "/provider_profiles", purpose: "ProviderProfile 列表（脱敏返回）" }
+      - { method: "POST", path: "/provider_profiles", purpose: "新增 ProviderProfile（包含 secret 字段写入）" }
+      - { method: "GET", path: "/provider_profiles/{profile_id}", purpose: "详情（脱敏返回；显示已配置状态）" }
+      - { method: "PATCH", path: "/provider_profiles/{profile_id}", purpose: "编辑（允许更新 secret；返回仍脱敏）" }
+      - { method: "DELETE", path: "/provider_profiles/{profile_id}", purpose: "删除（软删除或不可用标记）" }
+      - { method: "POST", path: "/provider_profiles/{profile_id}/set_default", purpose: "设为全局默认（唯一）" }
+
+    run_create_contract_lock:
+      required_fields:
+        - "run_type"
+        - "prompt_pack"
+      optional_fields:
+        - "override_provider_profile_id"
+        - "characters"
+        - "inputs"
+      invariants:
+        - "if characters provided, exactly one is_primary=true (primary_character)"
+        - "resolved_provider_profile_id MUST be recorded into run.input_json at creation time (evidence)"
+
+  ui_contract:
+    app_shell_lock:
+      components: ["Sidebar", "Topbar(Omnibox)", "MainContent", "InspectorDrawer"]
+      interaction_model: "View → Associate → Trace → Reuse"
+    required_routes:
+      - "/"
+      - "/library"
+      - "/assets/:asset_id"
+      - "/generate"
+      - "/shots"
+      - "/shots/:shot_id"
+      - "/trash"
+      - "/transfer"
+      - "/projects"
+      - "/projects/:project_id"
+      - "/series"
+      - "/series/:series_id"
+      - "/characters"
+      - "/characters/:character_id"
+      - "/settings"
+    generate_ui_lock:
+      must_show:
+        - "raw_input (required)"
+        - "assembly_prompt (optional) + explicit 'not used' marker"
+        - "final_prompt (required; preview before submit)"
+        - "character selector (0..N) + primary selection"
+        - "resolved provider profile (inherited or overridden)"
+      traceability_panel_must_include:
+        - "PromptPack digest"
+        - "Run status + request_id(s) if available"
+        - "Review summary (scores + pass/fail + reasons)"
+        - "Character + ref_set_version if any"
+    library_ui_lock:
+      filters_sort_min:
+        - "type: image|video"
+        - "source: generate|series|project|import (derived)"
+        - "time: created_at"
+        - "status: normal|trash"
+      asset_detail_must_include:
+        - "preview + metadata"
+        - "evidence chain: prompt_pack/raw_input/assembly_prompt/final_prompt + run + review"
+        - "relations: character/series/project/shot (via links)"
+
+  integration_strategy:
+    principles:
+      - "API-first: contracts lock before implementation"
+      - "Evidence chain immutable: new run/new version instead of overwrite"
+      - "Links is SSOT: all cross-entity relations via links"
+      - "Feature flags for rollout; keep V1 baseline stable"
+    parallel_streams:
+      - stream: "A-Backend"
+        conflict_domain: "data_model + api_routes"
+        scope: ["characters module", "provider_types + provider_profiles", "runs contract enhancements", "asset detail trace expansion"]
+      - stream: "B-Frontend"
+        conflict_domain: "ui_routes + ui_components"
+        scope: ["characters UI", "generate prompt chain UI", "settings UI", "library/detail trace UI"]
+      - stream: "C-Gates/Docs"
+        conflict_domain: "gates + docs"
+        scope: ["machine-checkable evidence for AC-001..AC-010", "handoff updates"]
+    conflict_domains_identified:
+      - "data_model"
+      - "api_contract"
+      - "ui_routes"
+      - "observability_contract"
+      - "export_encryption_contract"
+
+  confirmations:
+    confirmed_utc: "2026-01-01T00:00:00Z"
+    items:
+      - id: "PC-001"
+        topic: "Character 参考图是否同时作为普通 Asset 出现在 Library 默认列表"
+        confirmed_default: true
+        default: "是；通过 asset.meta_json.usage='character_reference' 支持过滤/隐藏（UI 默认可过滤）"
+      - id: "PC-002"
+        topic: "ProviderProfile secrets 的存储强度"
+        confirmed_default: true
+        default: "API 返回永不明文；DB 是否加密不强制（建议本地密钥加密作为实现选项）"
+      - id: "PC-003"
+        topic: "assembly_prompt 的“模板化组装”最小实现"
+        confirmed_default: true
+        default: "v1.1 最小交付仅保证手写 assembly_prompt + 可追溯；模板化作为扩展点"

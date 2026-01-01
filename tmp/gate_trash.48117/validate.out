@@ -1,0 +1,5 @@
+[ok] default excludes deleted
+[ok] include_deleted=true shows soft-deleted assets
+[ok] POST /trash/empty returns ok + purged_assets>=1 and echoes X-Request-Id
+[ok] purged deleted assets removed; active remains
+[ok] deleted file removed (best-effort)

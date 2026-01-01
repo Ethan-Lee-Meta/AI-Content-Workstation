@@ -2,7 +2,7 @@
 == [info] check api reachable ==
 [ok] api reachable: /openapi.json
 == [info] validate override without reason -> error envelope includes request_id ==
-[ok] override missing reason rejected; error envelope ok; request_id=c6078ff7-5e05-432b-928a-d179888b9c7e
+[ok] override missing reason rejected; error envelope ok; request_id=2b255ca8-4174-4ee7-b2f7-eb5020fcf5c9
 == [info] web routes accessible (baseline) ==
 == gate_web_routes: start ==
 == [info] next build ==
@@ -13,14 +13,14 @@
 ▲ Next.js 16.1.0 (Turbopack)
 
   Creating an optimized production build ...
-✓ Compiled successfully in 2.5s
+✓ Compiled successfully in 2.6s
   Running TypeScript ...
   Collecting page data using 19 workers ...
   Generating static pages using 19 workers (0/6) ...
   Generating static pages using 19 workers (1/6) 
   Generating static pages using 19 workers (2/6) 
   Generating static pages using 19 workers (4/6) 
-✓ Generating static pages using 19 workers (6/6) in 777.4ms
+✓ Generating static pages using 19 workers (6/6) in 746.8ms
   Finalizing page optimization ...
 
 Route (app)

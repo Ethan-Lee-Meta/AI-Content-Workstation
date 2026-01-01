@@ -1,0 +1,1 @@
+{"status":"ok","version":"0.1.0","db":{"status":"ok","kind":"sqlite","path":"./data/app.db"},"storage":{"status":"ok","root":"./data/storage"},"last_error_summary":null}

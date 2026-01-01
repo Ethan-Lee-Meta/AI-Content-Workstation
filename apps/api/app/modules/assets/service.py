@@ -136,15 +136,32 @@ def traceability_for_asset(asset_id: str) -> Dict[str, Any]:
             return {"links": [], "related": {}}
 
         cols = _columns(conn, "links")
-        required = {"source_type", "source_id", "target_type", "target_id"}
-        if not required.issubset(set(cols)):
+        # Check for actual column names used in the database (src_type/dst_type or source_type/target_type)
+        has_src_dst = {"src_type", "src_id", "dst_type", "dst_id"}.issubset(set(cols))
+        has_source_target = {"source_type", "source_id", "target_type", "target_id"}.issubset(set(cols))
+        
+        if not has_src_dst and not has_source_target:
             return {"links": [], "related": {}}
 
+        # Use the correct column names based on what's in the database
+        if has_src_dst:
+            src_col = "src_type"
+            src_id_col = "src_id"
+            dst_col = "dst_type"
+            dst_id_col = "dst_id"
+            rel_col = "rel"
+        else:
+            src_col = "source_type"
+            src_id_col = "source_id"
+            dst_col = "target_type"
+            dst_id_col = "target_id"
+            rel_col = "relation"
+
         rows = conn.execute(
-            """
+            f"""
             SELECT * FROM links
-            WHERE (source_type = ? AND source_id = ?)
-               OR (target_type = ? AND target_id = ?)
+            WHERE ({src_col} = ? AND {src_id_col} = ?)
+               OR ({dst_col} = ? AND {dst_id_col} = ?)
             ORDER BY rowid DESC
             LIMIT 200
             """,
@@ -162,13 +179,32 @@ def traceability_for_asset(asset_id: str) -> Dict[str, Any]:
 
         for r in rows:
             d: Dict[str, Any] = {}
-            for k in ["id", "source_type", "source_id", "target_type", "target_id", "relation", "created_at"]:
+            # Map to output format (always use source/target in output for consistency)
+            for k in ["id", "created_at"]:
                 if k in cols:
                     d[k] = r[k]
+            
+            # Map src/dst to source/target in output
+            if has_src_dst:
+                d["source_type"] = r[src_col]
+                d["source_id"] = r[src_id_col]
+                d["target_type"] = r[dst_col]
+                d["target_id"] = r[dst_id_col]
+                d["relation"] = r[rel_col]
+            else:
+                d["source_type"] = r[src_col]
+                d["source_id"] = r[src_id_col]
+                d["target_type"] = r[dst_col]
+                d["target_id"] = r[dst_id_col]
+                d["relation"] = r[rel_col]
+            
             links.append(d)
 
-            st, sid = r["source_type"], r["source_id"]
-            tt, tid = r["target_type"], r["target_id"]
+            # Extract values for related items
+            st = r[src_col]
+            sid = r[src_id_col]
+            tt = r[dst_col]
+            tid = r[dst_id_col]
             if st and sid:
                 add_related(st, sid)
             if tt and tid:

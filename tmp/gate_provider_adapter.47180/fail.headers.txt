@@ -1,0 +1,7 @@
+HTTP/1.1 500 Internal Server Error
+date: Wed, 31 Dec 2025 16:17:16 GMT
+server: uvicorn
+x-request-id: 96876199-fc1f-4f5d-9445-e7f91755ffc3
+content-length: 206
+content-type: application/json
+

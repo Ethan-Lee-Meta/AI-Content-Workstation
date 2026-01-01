@@ -3,14 +3,14 @@
 [ok] /openapi.json reachable
 == [case] provider flag OFF ==
 [ok] off -> json ok
-[ok] flag OFF -> POST /runs ok run_id=01KDTGY7SX7N2SCZJ3KWQHTWD8 status=queued
+[ok] flag OFF -> POST /runs ok run_id=01KDTKKM6VSN0K578PG3ZQX489 status=queued
 [ok] flag OFF -> GET ok status=queued result_refs_keys=[]
 == [case] provider flag ON (success) ==
 [ok] on -> json ok
-[ok] flag ON -> POST /runs ok run_id=01KDTGY9B6B104J502PDM56BTP status=succeeded
+[ok] flag ON -> POST /runs ok run_id=01KDTKKNRX6HQF7CZ0AYRWE05S status=succeeded
 [ok] flag ON -> GET ok status=succeeded refs_count=1
-[ok] artifact exists: ./data/storage\runs\01KDTGY9B6B104J502PDM56BTP\result.json
+[ok] artifact exists: ./data/storage\runs\01KDTKKNRX6HQF7CZ0AYRWE05S\result.json
 == [case] provider flag ON (forced fail) ==
-[ok] forced fail -> error_envelope ok request_id=c02c96f4-d15a-4b08-9b8d-aed134351c0e run_id=01KDTGYBG84HC5E566JBY9WGZW
+[ok] forced fail -> error_envelope ok request_id=95afba86-f203-4701-bb24-72483c19e1a2 run_id=01KDTKKQT1N3ZHQN6KAV85NN23
 [ok] forced fail -> GET ok status=failed
 == gate_provider_adapter: passed ==

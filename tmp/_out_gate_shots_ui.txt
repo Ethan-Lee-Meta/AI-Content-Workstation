@@ -1,7 +1,7 @@
 == gate_shots_ui: start ==
 == [info] API_BASE=http://127.0.0.1:7000 ==
 == [info] WEB_BASE=http://127.0.0.1:2000 ==
-== [info] request_id=gate_1767195564_25503 ==
+== [info] request_id=gate_1767198357_23590 ==
 == [check] api openapi reachable ==
 [ok] /openapi.json reachable
 == [check] pick one shot_id from API ==
@@ -11,7 +11,7 @@
 == [check] /shots/:shot_id page renders ==
 [ok] /shots/:shot_id renders (http=200)
 == [check] link add/remove (deterministic; seed assets if needed) ==
-== [info] link target asset_id=AACADF2B93B344EE93AF656AB5EBE57D ==
-[ok] link created link_id=32EC8CD68A59470783F68B10A38F9ED3
+== [info] link target asset_id=EA89F56409A04B87B5CDA7FA64D605C2 ==
+[ok] link created link_id=1BC19897051840E787F802B5E5649758
 [ok] link removed (tombstone semantics)
 == gate_shots_ui: done ==

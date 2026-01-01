@@ -1,8 +1,8 @@
 # P0 FULL Regression Evidence
 
-- Generated at (UTC): 2025-12-31T15:39:33Z
+- Generated at (UTC): 2025-12-31T16:26:08Z
 - Branch: dev/batch8-provider-adapter-p1
-- HEAD: 338436ae898a4a1fad5260825a773f7991d7c227
+- HEAD: 9dc078cb70dab8dc4d8836caba4bdffad94d07c0
 - Command: bash scripts/gate_all.sh --mode=full
 
 ## Required gates (min set) + e2e
@@ -29,13 +29,13 @@
 [ok] gate_api_smoke passed
 [ok] /openapi.json reachable
 [ok] off -> json ok
-[ok] flag OFF -> POST /runs ok run_id=01KDTGY7SX7N2SCZJ3KWQHTWD8 status=queued
+[ok] flag OFF -> POST /runs ok run_id=01KDTKKM6VSN0K578PG3ZQX489 status=queued
 [ok] flag OFF -> GET ok status=queued result_refs_keys=[]
 [ok] on -> json ok
-[ok] flag ON -> POST /runs ok run_id=01KDTGY9B6B104J502PDM56BTP status=succeeded
+[ok] flag ON -> POST /runs ok run_id=01KDTKKNRX6HQF7CZ0AYRWE05S status=succeeded
 [ok] flag ON -> GET ok status=succeeded refs_count=1
-[ok] artifact exists: ./data/storage\runs\01KDTGY9B6B104J502PDM56BTP\result.json
-[ok] forced fail -> error_envelope ok request_id=c02c96f4-d15a-4b08-9b8d-aed134351c0e run_id=01KDTGYBG84HC5E566JBY9WGZW
+[ok] artifact exists: ./data/storage\runs\01KDTKKNRX6HQF7CZ0AYRWE05S\result.json
+[ok] forced fail -> error_envelope ok request_id=95afba86-f203-4701-bb24-72483c19e1a2 run_id=01KDTKKQT1N3ZHQN6KAV85NN23
 [ok] forced fail -> GET ok status=failed
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
@@ -65,7 +65,7 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] /library source contains required sections markers (FiltersBar/AssetGrid/BulkActionBar)
 [ok] api reachable: /openapi.json
-[ok] picked asset_id=AACADF2B93B344EE93AF656AB5EBE57D
+[ok] picked asset_id=EA89F56409A04B87B5CDA7FA64D605C2
 [ok] /assets/:id returns an object
 [ok] error envelope includes error/message/request_id/details
 [ok] server ready (http://127.0.0.1:2000)
@@ -82,14 +82,14 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] asset detail source contains required panel markers
 [ok] api reachable: /openapi.json
-[ok] create run: type=t2i run_id=01KDTGZV3JW55HM2CT811N5Y0J request_id=40408e70-9623-44c5-b04c-672f5c56c213
-[ok] refresh run: run_id=01KDTGZV3JW55HM2CT811N5Y0J
-[ok] create run: type=i2i run_id=01KDTGZVBBQX39ZC4FERS4MDMQ request_id=a7ff32f1-22f8-4166-8b5e-ff021e825bd7
-[ok] refresh run: run_id=01KDTGZVBBQX39ZC4FERS4MDMQ
-[ok] create run: type=t2v run_id=01KDTGZVHXVXK6Z3SM7B9JHC15 request_id=0088a3a4-6b29-4f66-9c08-158be144cd8a
-[ok] refresh run: run_id=01KDTGZVHXVXK6Z3SM7B9JHC15
-[ok] create run: type=i2v run_id=01KDTGZVR7Q9X1PCTYYYRZB85D request_id=c446af1b-4d89-40e7-8f25-6024db6a28ee
-[ok] refresh run: run_id=01KDTGZVR7Q9X1PCTYYYRZB85D
+[ok] create run: type=t2i run_id=01KDTKMZ9CJAXHNRMECF6ZRH3V request_id=94570dad-7e7f-406b-a577-2a489eebb67a
+[ok] refresh run: run_id=01KDTKMZ9CJAXHNRMECF6ZRH3V
+[ok] create run: type=i2i run_id=01KDTKMZGP5ST95NQND02200QX request_id=fa49da17-9e5b-4640-9bc6-86734e6c4f3c
+[ok] refresh run: run_id=01KDTKMZGP5ST95NQND02200QX
+[ok] create run: type=t2v run_id=01KDTKMZQS9AMWDWMX03JP88BY request_id=ccb9539f-9708-4f6f-9761-e5f35e3b9c82
+[ok] refresh run: run_id=01KDTKMZQS9AMWDWMX03JP88BY
+[ok] create run: type=i2v run_id=01KDTKMZXKDBNRVKT4TE9Z87ZG request_id=e7c04825-5684-4ee1-a74c-8346ec113ea9
+[ok] refresh run: run_id=01KDTKMZXKDBNRVKT4TE9Z87ZG
 [ok] create run for each type; status refreshed
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
@@ -105,7 +105,7 @@
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] /generate source contains required section markers (InputTypeSelector/PromptEditor/RunQueuePanel/ResultsPanel)
 [ok] api reachable: /openapi.json
-[ok] override missing reason rejected; error envelope ok; request_id=c6078ff7-5e05-432b-928a-d179888b9c7e
+[ok] override missing reason rejected; error envelope ok; request_id=2b255ca8-4174-4ee7-b2f7-eb5020fcf5c9
 [ok] server ready (http://127.0.0.1:2000)
 [ok] route ok: /
 [ok] route ok: /library
@@ -119,7 +119,7 @@
 [ok] route ok: /shots/test-shot
 [ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
 [ok] Review UI markers present and wired
-[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=40408e70-9623-44c5-b04c-672f5c56c213
+[ok] request_id sample: tmp/_out_gate_ac_003.txt:request_id=94570dad-7e7f-406b-a577-2a489eebb67a
 [ok] e2e happy path passed
 [ok] shots list returns items+page with required keys
 [ok] shots detail returns shot + linked_refs summary
@@ -129,17 +129,17 @@
 [ok] /shots renders (http=200)
 [ok] picked shot_id: 00363326BCB248A5B341B04BDF3CE2A6
 [ok] /shots/:shot_id renders (http=200)
-[ok] link created link_id=32EC8CD68A59470783F68B10A38F9ED3
+[ok] link created link_id=1BC19897051840E787F802B5E5649758
 [ok] link removed (tombstone semantics)
 ```
 
 ## request_id samples (run 1)
 ```text
-tmp/_out_gate_ac_003.txt:request_id=40408e70-9623-44c5-b04c-672f5c56c213
-tmp/_out_gate_ac_003.txt:request_id=a7ff32f1-22f8-4166-8b5e-ff021e825bd7
-tmp/_out_gate_ac_003.txt:request_id=0088a3a4-6b29-4f66-9c08-158be144cd8a
-tmp/_out_gate_ac_003.txt:request_id=c446af1b-4d89-40e7-8f25-6024db6a28ee
-tmp/_out_gate_ac_004.txt:request_id=c6078ff7-5e05-432b-928a-d179888b9c7e
+tmp/_out_gate_ac_003.txt:request_id=94570dad-7e7f-406b-a577-2a489eebb67a
+tmp/_out_gate_ac_003.txt:request_id=fa49da17-9e5b-4640-9bc6-86734e6c4f3c
+tmp/_out_gate_ac_003.txt:request_id=ccb9539f-9708-4f6f-9761-e5f35e3b9c82
+tmp/_out_gate_ac_003.txt:request_id=e7c04825-5684-4ee1-a74c-8346ec113ea9
+tmp/_out_gate_ac_004.txt:request_id=2b255ca8-4174-4ee7-b2f7-eb5020fcf5c9
 ```
 
 ## Raw logs
