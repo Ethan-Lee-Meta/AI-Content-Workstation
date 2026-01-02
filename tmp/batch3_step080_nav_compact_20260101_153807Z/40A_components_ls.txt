@@ -1,0 +1,8 @@
+== list: apps/web/app/_components ==
+total 17
+drwxr-xr-x 1 lee 197121    0 Dec 31 00:26 ./
+drwxr-xr-x 1 lee 197121    0 Dec 31 23:31 ../
+-rw-r--r-- 1 lee 197121 1122 Dec 31 00:26 AppShell.js
+-rw-r--r-- 1 lee 197121 1602 Dec 31 00:26 InspectorDrawer.js
+-rw-r--r-- 1 lee 197121 1969 Dec 31 11:45 Sidebar.js
+-rw-r--r-- 1 lee 197121  584 Dec 31 00:26 Topbar.js

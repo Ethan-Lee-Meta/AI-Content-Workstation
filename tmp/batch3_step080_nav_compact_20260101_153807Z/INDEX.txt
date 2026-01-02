@@ -1,0 +1,4 @@
+== index ==
+tmp/batch3_step080_nav_compact_20260101_153807Z/40A_components_ls.txt
+tmp/batch3_step080_nav_compact_20260101_153807Z/40A_appshell_head.txt
+tmp/batch3_step080_nav_compact_20260101_153807Z/40A_nav_hits_limited.txt

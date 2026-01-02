@@ -1,0 +1,5 @@
+== [A1] detect Next.js app dir candidates ==
+[ok] found: apps/web/app
+[no]  apps/web/src/app
+[no]  web/app
+[no]  app

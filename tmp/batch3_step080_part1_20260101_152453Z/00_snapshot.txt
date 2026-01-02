@@ -1,0 +1,9 @@
+== [snapshot] ==
+root=E:/BaiduNetdiskDownload/ai-content-workstation
+branch=dev/v1_1-batch1-step020-data_model
+head=658352ed1a545f001b8adb1d8b3bdbb53eb629ca
+
+== [status -sb] ==
+## dev/v1_1-batch1-step020-data_model...origin/dev/v1_1-batch1-step020-data_model
+ M docs/HANDOFFP1.md
+?? tmp/batch3_step080_part1_20260101_152453Z/
