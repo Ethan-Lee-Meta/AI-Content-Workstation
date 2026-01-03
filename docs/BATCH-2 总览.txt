@@ -1,0 +1,613 @@
+BATCH-2 总览
+目标（Batch Outcome）
+
+在 Batch-1（新表 + triggers + gate_models）已通过的前提下，完成 v1.1 的 后端 API 面 与 证据链扩展，覆盖：
+
+AC-010（Providers/Settings）：ProviderType 由后端控制，ProviderProfile 可增删改设默认，secret 永不明文回显，Generate/run 可继承默认并可覆写。
+
+AC-007（Characters）：Character + ref_set 版本化；ref_set 达到 D-008 可 confirmed；run 可选择角色（含 primary）并记录使用的 ref_set；产物 Asset 可追溯到角色与 ref_set。
+
+AC-008（Prompt Chain）：PromptPack schema lock（raw_input / final_prompt / assembly_used；assembly_prompt 可选且缺省时必须标记未使用）；run/asset 可反查链路。
+
+依赖（Hard Dependencies）
+
+Batch-0：gate_all --mode=preflight PASS（你已提供 PASS 日志）
+
+Batch-1：三表迁移与 triggers 已合并并 PASS（gate_models.sh + preflight PASS）
+
+端口锁：API 7000 / Web 2000（Batch-2 主要跑 API gates）
+
+冲突域（Conflict Domains）
+
+api_routes（主）
+
+dto_contract（主）
+
+data_access/service（主）
+
+gates/docs（辅）
+
+本批次必须遵守的全局契约
+
+Error Envelope：error, message, request_id, details
+
+X-Request-Id：成功/失败都必须回写
+
+分页响应（适用于列表接口）：{ items: [...], page: {limit, offset, total, has_more} }
+
+Links 关系 SSOT：新增的跨对象关系必须写入 links（见 relationship_lock）
+
+Batch-2 拆分与合并策略（推荐）
+
+2A（Providers）：只改 providers 相关路由/DTO/service + gates（可独立合并）
+
+2B（Characters）：只改 characters/ref_sets/refs 路由/DTO/service + links 写入 + gates（可独立合并）
+
+2C（Runs + Trace）：run create contract、prompt_pack schema lock、run->* links、asset detail trace 扩展 + gates（依赖 2A/2B 的实体存在，但可在逻辑上先 stub 再补齐）
+
+2A — Providers / Settings（AC-010）
+2A.1 端点清单（必须实现）
+
+GET /provider_types
+
+GET /provider_profiles（分页；脱敏返回）
+
+POST /provider_profiles（允许写入 secret）
+
+GET /provider_profiles/{profile_id}（脱敏返回；显示“已配置”状态）
+
+PATCH /provider_profiles/{profile_id}（允许更新 secret；返回仍脱敏）
+
+DELETE /provider_profiles/{profile_id}（删除策略见 2A.4）
+
+POST /provider_profiles/{profile_id}/set_default（全局默认唯一）
+
+注意：前端不能创建未知 ProviderType；ProviderType 必须来自后端输出（D-014）。
+
+2A.2 ProviderType Registry（后端控制能力清单）
+必须提供的语义信息（供 UI 渲染表单）
+
+建议每个 ProviderType 输出：
+
+provider_type（稳定 key，snake_case）
+
+display_name
+
+capabilities（支持 run_type：t2i/i2i/t2v/i2v）
+
+config_schema（字段描述列表）
+
+key
+
+label
+
+type（string/int/bool/enum/json）
+
+required（bool）
+
+secret（bool，secret=true 的字段永不回显）
+
+default（可选）
+
+help（可选）
+
+检查表（DoD）
+
+ 能列出至少 1 个 ProviderType（与当前 ProviderAdapter 可执行能力一致）
+
+ ProviderType 变更只需后端升级即可出现（前端无需新增枚举）
+
+ ProviderProfile 创建/更新时会校验 provider_type 必须来自 registry，否则 400（error=unknown_provider_type）
+
+2A.3 ProviderProfile CRUD 行为（含脱敏）
+写入（POST/PATCH）
+
+允许提交包含 secret 的字段（如 api_key）
+
+后端保存到 config_json
+
+同时保存 secrets_redaction_policy_json（用于定义哪些 key 属于 secret）
+
+允许由后端根据 ProviderType 的 secret=true 自动生成；前端不必填写
+
+读取（GET list/detail）
+
+绝不明文返回 secret 值
+
+必须提供“已配置状态”用于 UI：
+
+方案推荐：secrets_configured: {key: true/false, ...}
+
+或 config_redacted：secret key 值统一返回 "***"/null（但必须明确是脱敏）
+
+检查表（DoD）
+
+ GET list/detail 不出现任何 secret 明文字段
+
+ 仍可让 UI 判断“是否已填 secret”
+
+ PATCH 更新 secret 后，GET 仍不回显，但 configured 状态为 true
+
+2A.4 删除策略（在不改 schema 的前提下必须可执行）
+
+由于 provider_profiles 表无 deleted_at/is_deleted 字段，Batch-2 必须选择一种“不破坏证据链”的删除策略并固化：
+
+推荐策略（默认）：逻辑删除 + scrub secrets
+
+DELETE 行为：
+
+将 profile 从默认位撤下（is_global_default=0）
+
+清空/移除 config_json 中的 secret 字段（scrub）
+
+写入 config_json._meta.deleted=true 与 deleted_at（仅作为元信息；不新增列）
+
+GET list 默认不返回 deleted=true 的记录（可选：加 include_deleted=true 支持运维查看；若加，必须写入契约并测试）
+
+检查表（DoD）
+
+ 删除后：profile 不再可被 set_default / 不会被 run resolution 选中
+
+ 删除后：不会泄露旧 secret（scrub 生效）
+
+ 若历史 run 引用该 profile_id：Asset/Run trace 仍能显示基本信息（至少 id/name/provider_type 可保留；若 name 也被你策略改写，必须在 run.input_json 存快照，见 2C）
+
+你也可以选择“硬删除但禁止删除被 runs 引用的 profile（409）”。但必须写清楚 UX 影响与 gate 覆盖。
+
+2A.5 全局默认唯一（set_default）
+规则
+
+全局最多一个 is_global_default=1
+
+set_default 必须原子化：
+
+清空其它 default → 设置目标 default
+
+若目标已 deleted=true：必须拒绝（400/409）
+
+检查表（DoD）
+
+ 多次 set_default 不会产生多个 default
+
+ 并发 set_default 不会造成双 default（至少通过事务/串行化保证）
+
+2A.6 验证（建议新增 gate_provider_profiles）
+必测用例
+
+provider_types 可达，包含字段语义
+
+创建 profile（含 secret）→ list/detail 脱敏
+
+patch secret → configured 状态变化
+
+set_default 唯一
+
+delete → scrub + 不再出现在默认列表
+
+验证命令（示例）
+bash scripts/gate_provider_profiles.sh
+
+
+预期输出关键行（建议标准化）
+
+[ok] GET /provider_types returns items>=1
+
+[ok] POST /provider_profiles created; secret not echoed
+
+[ok] GET /provider_profiles redaction ok (no secrets)
+
+[ok] set_default uniqueness ok
+
+[ok] delete scrub ok
+
+2B — Characters / Ref Sets（AC-007 + D-008）
+2B.1 端点清单（必须实现）
+
+GET /characters（分页；status 过滤）
+
+POST /characters（创建 draft）
+
+GET /characters/{character_id}（含 active_ref_set + refs）
+
+PATCH /characters/{character_id}（name/status/active_ref_set_id）
+
+POST /characters/{character_id}/ref_sets（创建版本；draft/confirmed）
+
+GET /characters/{character_id}/ref_sets/{ref_set_id}（含引用资产列表）
+
+POST /characters/{character_id}/ref_sets/{ref_set_id}/refs（向 ref_set 添加 asset 引用）
+
+2B.2 数据与关系写入（relationship_lock 必须满足）
+
+必须写入 links（rel 固定值）：
+
+character -> character_ref_set：has_ref_set_version
+
+character_ref_set -> asset：includes_reference_asset
+-（run 相关在 2C）
+
+检查表（DoD）
+
+ 创建 ref_set 时写入 has_ref_set_version
+
+ 添加 refs 时写入 includes_reference_asset
+
+ 获取 character/ref_set 详情时，引用资产来自 links 的有效关系（需考虑 tombstone 语义）
+
+2B.3 ref_set 版本化与 append-only 约束
+版本规则
+
+version 对同一 character 单调递增
+
+unique(character_id, version)（Batch-1 已建议 DB 级）
+
+character_ref_sets 表 append-only（Batch-1 triggers 已禁止 UPDATE/DELETE）
+
+实现含义（API 层必须适配）
+
+ref_set 的“修改”（比如加 refs、变更状态）不能通过 UPDATE ref_set 行实现
+
+refs：通过 links 追加实现（append-only）
+
+状态：推荐在创建 ref_set 时一次性确定 status=draft|confirmed
+
+若需要“draft→confirmed”转换：必须通过“新建一个 confirmed 版本”实现（version+1）
+
+检查表（DoD）
+
+ API 不对 character_ref_sets 做 UPDATE/DELETE（否则触发器会 ABORT）
+
+ “确认”行为等价于“创建一个 confirmed 新版本”或“创建时直接 confirmed”（但必须满足门槛）
+
+2B.4 D-008 确认门槛（最小可执行版本）
+
+D-008 冻结内容要点：
+
+confirmed 最小门槛：≥8 张参考图片
+
+覆盖：正面/三分之二侧/侧面（各≥1）
+
+包含：≥2 种表情、≥2 种光照
+
+推荐：12 张（更鲁棒）
+
+由于 refs 端点只接收 asset_id，而资产未必有姿态/光照/表情标签，Batch-2 必须定义“可执行”的落地方式，建议如下：
+
+推荐落地（可执行且不改 schema）
+
+在 POST .../ref_sets（请求要 confirmed）或 POST .../refs（每次加引用后）计算覆盖度：
+
+count_total_refs
+
+可选：如果 asset.metadata 中已有 angle/expression/lighting 字段，则统计覆盖；没有则标记 unknown
+
+将“门槛快照 + 当前覆盖度”写入 min_requirements_snapshot_json（在创建 ref_set 时写入）
+
+快照至少包含：min_required=8, recommended=12, rules=[...]
+
+当前覆盖度至少包含：total_refs, angles_covered, expressions_covered, lighting_covered, unknown_fields
+
+confirmed 条件（Batch-2 最小要求）：
+
+硬门槛：total_refs ≥ 8（必须）
+
+角度/表情/光照：若缺乏结构化标签，则以 unknown 形式记录并允许 confirmed，但 UI 需提示“覆盖度无法验证”（这必须写入 evidence 与 API 返回字段，避免误导）
+
+检查表（DoD）
+
+ confirmed 的 ref_set 必须满足 total_refs≥8，否则 400（error=ref_set_confirm_requirements_not_met）
+
+ 参考集详情能返回 snapshot_json（用于 UI 展示）
+
+ 角色详情能反映“当前 active_ref_set 是否 confirmed”
+
+2B.5 active_ref_set_id 语义（不做 FK 的一致性规则）
+
+Batch-1 推荐不对 characters.active_ref_set_id 建 FK（避免循环），则 Batch-2 API 必须 enforce：
+
+PATCH 设置 active_ref_set_id 时：
+
+ref_set 必须存在
+
+ref_set.character_id 必须等于该 character_id
+
+ref_set.status 必须为 confirmed（建议强制）
+
+若违反：400（error=invalid_active_ref_set）
+
+检查表（DoD）
+
+ 无法将别的角色 ref_set 设为本角色 active
+
+ 无法将 draft ref_set 设为 active（若你选择强制）
+
+2B.6 refs 添加行为（幂等性与资产类型）
+
+POST .../refs 输入：asset_id（固定）
+
+必须决定：
+
+是否允许重复引用同一 asset_id？
+
+推荐：幂等（已有有效关系则不再插入新 link，直接返回 ok）
+
+是否限制 asset 类型？
+
+推荐：允许 image；可选允许短视频（D-008 允许视频补充），但必须在 snapshot 中区分
+
+检查表（DoD）
+
+ asset_id 不存在 → 404（error=asset_not_found）
+
+ 重复添加 → 返回 200/201，但不产生重复有效关系（或明确允许并在详情去重）
+
+ ref_set 不属于该 character → 400/404（error=ref_set_not_found 或 invalid_ref_set_owner）
+
+2B.7 验证（建议新增 gate_characters）
+bash scripts/gate_characters.sh
+
+
+预期关键行
+
+[ok] create character draft
+
+[ok] create ref_set draft
+
+[ok] add refs idempotent
+
+[ok] create ref_set confirmed requires >=8
+
+[ok] patch active_ref_set_id validates ownership+confirmed
+
+[ok] character detail includes active_ref_set + refs
+
+2C — Runs + Prompt Chain + Trace（AC-008 + AC-007 + AC-010）
+2C.1 端点清单（必须实现/扩展）
+
+POST /runs（run_create_contract_lock）
+
+GET /runs/{run_id}（状态与结果）
+
+扩展 GET /assets/{asset_id}（证据链反查增强；不新增端点）
+
+2C.2 Run Create 请求契约（run_create_contract_lock）
+必填字段
+
+run_type（枚举：t2i / i2i / t2v / i2v）
+
+prompt_pack（见 2C.3 schema lock）
+
+可选字段
+
+override_provider_profile_id
+
+characters（列表）
+
+inputs（opaque JSON，provider-specific）
+
+不变量（必须 enforce）
+
+若提供 characters：必须 恰好一个 is_primary=true
+
+创建时必须把 resolved_provider_profile_id 写入 run.input_json（证据）
+
+2C.3 PromptPack schema lock（AC-008 / ARCH 3.1）
+
+prompt_pack JSON 必含：
+
+raw_input（非空）
+
+final_prompt（非空）
+
+assembly_used（显式 bool）
+可选：
+
+assembly_prompt
+规则：
+
+若缺省 assembly_prompt：必须 assembly_used=false，且 UI 必须显示“未使用”
+
+PromptPack 作为不可变快照（append-only）
+
+检查表（DoD）
+
+ raw_input/final_prompt 为空 → 400（error=invalid_prompt_pack）
+
+ assembly_used 缺失 → 400
+
+ assembly_prompt 缺省但 assembly_used=true → 400
+
+ 成功创建 run 时，prompt_pack 被持久化为独立记录（prompt_packs 表）且与 run 建立关系（见 2C.5）
+
+2C.4 ProviderProfile 解析（默认继承 + 覆写）
+
+在不引入 workspace default（Project/Series）数据模型的情况下，Batch-2 最小可执行链路：
+
+解析优先级：
+
+若 override_provider_profile_id 提供 → resolved=该 id（必须存在且未 deleted）
+
+否则 resolved=全局默认 is_global_default=1
+
+若不存在全局默认：
+
+推荐：返回 400（error=provider_profile_required）
+
+或：允许 resolved=null，但必须记录 resolved_provider_profile_id=null 并明确 provider_adapter 将走系统内置默认（若存在）。二选一必须固化并写入证据与 gates。
+
+检查表（DoD）
+
+ override 指向不存在 → 404（error=provider_profile_not_found）
+
+ override 指向 deleted → 400/409
+
+ resolved_provider_profile_id 永远写入 run.input_json（即使为 null）
+
+2C.5 Run 与 Links 的证据关系写入（relationship_lock）
+
+成功创建 run 时必须落地以下关系（links 表）：
+
+run -> prompt_pack：uses_prompt_pack
+
+若 run 选择了角色：
+
+run -> character：uses_character（0..N）
+
+run -> character_ref_set：uses_character_ref_set（必须记录当次 ref_set）
+
+产物生成后（ProviderAdapter/后续流程）：
+
+run -> asset：produced_asset
+
+run -> review：has_review（若有）
+
+characters 字段建议形状（用于满足 primary 不变量与 ref_set 追溯）
+
+建议 characters 元素包含：
+
+character_id
+
+可选 character_ref_set_id（若缺省则使用该 character.active_ref_set_id）
+
+is_primary（bool）
+
+解析规则建议：
+
+若传入 character_ref_set_id：必须属于该 character 且建议 status=confirmed
+
+若缺省：必须存在 character.active_ref_set_id，否则 400（error=active_ref_set_missing）
+
+最终使用的 ref_set_id 必须写入：
+
+links：uses_character_ref_set
+
+run.input_json：记录每个角色的 resolved_ref_set_id（便于取证）
+
+检查表（DoD）
+
+ characters 提供但 primary 数量≠1 → 400（error=primary_character_required / multiple_primary_characters）
+
+ 任一 character_id 不存在 → 404（error=character_not_found）
+
+ ref_set 不存在/不归属 → 400/404（error=ref_set_not_found / invalid_ref_set_owner）
+
+ 解析后的 ref_set_id 被记录到 run.input_json（证据）并写入 links
+
+2C.6 Run 状态与结果（GET /runs/{run_id}）
+
+v1 基线提示：实际状态可能由 run_events 覆盖（append-only）。Batch-2 必须保证：
+
+GET /runs/{run_id} 能返回“当前有效状态”
+
+若存在 run_events：以最新事件为准
+
+仍返回统一 envelope（至少包含 run 核心字段 + status + result_refs）
+
+检查表（DoD）
+
+ run 不存在 → 404 error envelope
+
+ run 存在但无 events → status=queued（或 runs 表状态）
+
+ 有 events → status/result 来自最新 event
+
+2C.7 Asset Detail Trace 扩展（GET /assets/{asset_id}）
+
+目标：满足 AC-002/AC-008/AC-007 的“从 Asset 反查链路”。
+
+必须能从 asset 详情反查到：
+
+产生它的 run（通过 links：produced_asset）
+
+该 run 的 prompt_pack（raw_input/assembly_prompt/final_prompt/assembly_used）
+
+该 run 使用的 provider_profile（至少 id；建议 name/provider_type；且必须脱敏）
+
+该 run 使用的角色与 ref_set（含 primary 标记；ref_set_id 必须可见）
+
+如果 provider_profile 可能被删除/被 scrub，建议在 run.input_json 写入 provider_profile_snapshot（id/name/provider_type + “secret configured”状态），以保证追溯不依赖 profile 当前状态。这不会破坏锁定项，属于证据增强。
+
+检查表（DoD）
+
+ asset 详情包含 “evidence_chain” 或等价结构（字段名由你现有 /assets/{id} 响应风格决定，但必须可被 UI 定位）
+
+ 至少能返回 prompt_chain 三字段 + assembly_used
+
+ 能返回角色列表 + primary 标记 + ref_set_id
+
+ provider_profile 信息不泄露 secret
+
+2C.8 验证（建议新增 gate_runs_trace）
+bash scripts/gate_runs_trace_v11.sh
+
+
+必测场景
+
+run create（t2i/i2i/t2v/i2v 至少覆盖 1 个）成功
+
+prompt_pack schema lock 校验（缺字段必失败）
+
+provider resolution（default/override）
+
+characters primary 不变量
+
+asset detail 能反查 prompt chain + characters/ref_set（若本地没有 produced_asset，可用“已有资产+已有 links”的方式验证，或在 PROVIDER_ENABLED=1 的环境下跑完整链路）
+
+预期关键行
+
+[ok] run created includes resolved_provider_profile_id in input_json
+
+[ok] prompt_pack schema lock enforced
+
+[ok] characters primary invariant enforced
+
+[ok] links created: uses_prompt_pack / uses_character / uses_character_ref_set
+
+[ok] asset detail trace contains prompt_chain + character_ref_set
+
+Batch-2 统一验证与不回归要求
+必跑 gates（合并前）
+
+bash scripts/gate_all.sh --mode=preflight（必须仍 PASS）
+
+bash scripts/gate_provider_profiles.sh（新增）
+
+bash scripts/gate_characters.sh（新增）
+
+bash scripts/gate_runs_trace_v11.sh（新增）
+
+若你暂时不把新 gate 合并进 gate_all，也必须在 Evidence 中记录“独立 gate 的 PASS 输出”。
+
+证据与交接（Evidence Pack）
+
+Batch-2 完成后必须补齐（写入 docs/EVIDENCE_P0_FULL.md 或你指定的 cumulative evidence）：
+
+新增/扩展端点列表（方法+路径+目的）
+
+ProviderType 输出样例（字段语义证明）
+
+ProviderProfile 脱敏证明（包含 configured 状态）
+
+Characters：confirmed 门槛验证记录（≥8 的成功与 <8 的失败样例，带 request_id）
+
+Runs：prompt_pack schema lock 的成功/失败样例（带 request_id）
+
+Asset detail trace：能反查 prompt chain + character/ref_set + provider（脱敏）
+
+回滚策略（Rollback）
+
+代码回滚：回到 Batch-1 last-green（并保持数据模型迁移不被破坏）
+
+DB 回滚：原则上 Batch-2 不新增迁移；若你确实引入了迁移（不推荐，除非 CR），则必须提供 downgrade 路径并回归 preflight PASS
+
+配置回滚：若 ProviderType registry 变更导致 UI/Run 不兼容，必须能通过恢复 registry 输出（后端版本回退）回到可运行状态
+
+你可以直接派发给实现窗口的“执行顺序建议”（最省返工）
+
+先做 2A：provider_types + provider_profiles（含脱敏/默认唯一）→ gate_provider_profiles
+
+再做 2B：characters + ref_sets + refs + links → gate_characters
+
+最后做 2C：runs create（prompt_pack lock + provider resolve + characters primary + links）→ asset detail trace 扩展 → gate_runs_trace_v11
+
+全量跑 preflight，确认为“不回归合并单元”

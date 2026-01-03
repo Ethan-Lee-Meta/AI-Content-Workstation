@@ -1,0 +1,5 @@
+== gate_provider_adapter: start ==
+== [info] API_BASE_URL=http://127.0.0.1:7000 ==
+[ok] /openapi.json reachable
+== [case] provider flag OFF ==
+[ok] off -> json ok

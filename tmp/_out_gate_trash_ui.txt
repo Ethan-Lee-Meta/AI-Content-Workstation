@@ -1,0 +1,5 @@
+== gate_trash_ui: start ==
+[ok] trash view markers present
+[ok] include_deleted=true used for trash listing
+[ok] empty trash uses POST /trash/empty with confirmation
+== gate_trash_ui: passed ==

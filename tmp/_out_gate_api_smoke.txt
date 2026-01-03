@@ -1,0 +1,11 @@
+== gate_api_smoke: start ==
+== gate_health_contract_check ==
+[ok] /health keys present: status, version, db, storage, last_error_summary
+== gate_request_id_propagation_check ==
+[ok] header present: X-Request-Id (non-empty)
+== gate_openapi_reachable ==
+[ok] /openapi.json reachable
+== gate_error_envelope_check ==
+[ok] error path header present: X-Request-Id (non-empty)
+[ok] error envelope includes request_id and required keys
+[ok] gate_api_smoke passed

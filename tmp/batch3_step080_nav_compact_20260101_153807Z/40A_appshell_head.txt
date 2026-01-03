@@ -1,0 +1,41 @@
+== AppShell candidate ==
+apps/web/app/_components/AppShell.js
+
+---- head(260) ----
+"use client";
+
+import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
+import Sidebar from "./Sidebar";
+import Topbar from "./Topbar";
+import InspectorDrawer from "./InspectorDrawer";
+
+export default function AppShell({ children }) {
+  const pathname = usePathname() || "/";
+  const [inspector, setInspector] = useState({
+    open: true,
+    title: "Inspector",
+    payload: { hint: "Select an item to inspect (P0 placeholder)." }
+  });
+
+  const ctx = useMemo(() => {
+    return {
+      pathname,
+      inspector,
+      openInspector: (next) => setInspector((prev) => ({ ...prev, open: true, ...next })),
+      closeInspector: () => setInspector((prev) => ({ ...prev, open: false })),
+      toggleInspector: () => setInspector((prev) => ({ ...prev, open: !prev.open }))
+    };
+  }, [pathname, inspector]);
+
+  return (
+    <div className="shell">
+      <Sidebar ctx={ctx} />
+      <div className="main">
+        <Topbar ctx={ctx} />
+        <main className="content">{children}</main>
+      </div>
+      <InspectorDrawer ctx={ctx} />
+    </div>
+  );
+}

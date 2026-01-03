@@ -1,0 +1,74 @@
+== gate_ac_003: start ==
+== [info] check api reachable ==
+[ok] api reachable: /openapi.json
+== [info] create run for each type (t2i/i2i/t2v/i2v) + refresh status ==
+[ok] create run: type=t2i run_id=01KDTKMZ9CJAXHNRMECF6ZRH3V request_id=94570dad-7e7f-406b-a577-2a489eebb67a
+[ok] refresh run: run_id=01KDTKMZ9CJAXHNRMECF6ZRH3V
+[ok] create run: type=i2i run_id=01KDTKMZGP5ST95NQND02200QX request_id=fa49da17-9e5b-4640-9bc6-86734e6c4f3c
+[ok] refresh run: run_id=01KDTKMZGP5ST95NQND02200QX
+[ok] create run: type=t2v run_id=01KDTKMZQS9AMWDWMX03JP88BY request_id=ccb9539f-9708-4f6f-9761-e5f35e3b9c82
+[ok] refresh run: run_id=01KDTKMZQS9AMWDWMX03JP88BY
+[ok] create run: type=i2v run_id=01KDTKMZXKDBNRVKT4TE9Z87ZG request_id=e7c04825-5684-4ee1-a74c-8346ec113ea9
+[ok] refresh run: run_id=01KDTKMZXKDBNRVKT4TE9Z87ZG
+[ok] create run for each type; status refreshed
+== [info] web routes accessible (baseline) ==
+== gate_web_routes: start ==
+== [info] next build ==
+
+> apps-web@0.1.0 build
+> next build
+
+▲ Next.js 16.1.0 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.5s
+  Running TypeScript ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/6) ...
+  Generating static pages using 19 workers (1/6) 
+  Generating static pages using 19 workers (2/6) 
+  Generating static pages using 19 workers (4/6) 
+✓ Generating static pages using 19 workers (6/6) in 1361.7ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
+├ ƒ /assets/[asset_id]
+├ ƒ /generate
+├ ƒ /library
+├ ○ /projects
+├ ƒ /projects/[project_id]
+├ ○ /series
+├ ƒ /series/[series_id]
+├ ƒ /shots
+├ ƒ /shots/[shot_id]
+├ ƒ /transfer
+└ ƒ /trash
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+== [info] starting next (2000) ==
+== [info] wait for server ==
+[ok] server ready (http://127.0.0.1:2000)
+== [info] probing required routes ==
+[ok] route ok: /
+[ok] route ok: /library
+[ok] route ok: /assets/test-asset
+[ok] route ok: /generate
+[ok] route ok: /projects
+[ok] route ok: /projects/test-project
+[ok] route ok: /series
+[ok] route ok: /series/test-series
+[ok] route ok: /shots
+[ok] route ok: /shots/test-shot
+[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
+== gate_web_routes: passed ==
+== [info] verify /generate contains required sections markers in source (stable gate) ==
+[ok] /generate source contains required section markers (InputTypeSelector/PromptEditor/RunQueuePanel/ResultsPanel)
+== gate_ac_003: passed ==

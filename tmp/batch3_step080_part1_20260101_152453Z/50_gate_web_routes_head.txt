@@ -1,0 +1,125 @@
+== [A5] locate gate_web_routes script ==
+-- scripts/ list (first 200 lines) --
+total 216
+drwxr-xr-x 1 lee 197121     0 Jan  1 22:16 ./
+drwxr-xr-x 1 lee 197121     0 Jan  1 22:47 ../
+-rwxr-xr-x 1 lee 197121  2932 Dec 29 14:19 create_remote_and_push.sh*
+-rwxr-xr-x 1 lee 197121   877 Dec 29 15:10 dev_api.sh*
+-rwxr-xr-x 1 lee 197121  2473 Dec 31 00:26 gate_ac_001.sh*
+-rwxr-xr-x 1 lee 197121  3994 Dec 31 00:26 gate_ac_002.sh*
+-rwxr-xr-x 1 lee 197121  7398 Dec 31 00:26 gate_ac_003.sh*
+-rwxr-xr-x 1 lee 197121  3739 Dec 31 00:26 gate_ac_004.sh*
+-rwxr-xr-x 1 lee 197121  2008 Dec 31 10:07 gate_ac_005.sh*
+-rwxr-xr-x 1 lee 197121  5454 Jan  1 22:17 gate_all.sh*
+-rwxr-xr-x 1 lee 197121  5254 Dec 31 23:06 gate_all.sh.bak.batch9.20251231_150645*
+-rwxr-xr-x 1 lee 197121  2368 Dec 31 12:52 gate_api_p1_caps_strict.sh*
+-rwxr-xr-x 1 lee 197121   283 Dec 29 14:55 gate_api_smoke.sh*
+-rwxr-xr-x 1 lee 197121  5327 Jan  1 13:56 gate_append_only_ref_sets.sh*
+-rwxr-xr-x 1 lee 197121 10075 Jan  1 21:50 gate_assets_read.sh*
+-rwxr-xr-x 1 lee 197121  1918 Dec 31 12:06 gate_bulk_actions.sh*
+-rwxr-xr-x 1 lee 197121  3273 Jan  1 21:32 gate_characters.sh*
+-rwxr-xr-x 1 lee 197121  3305 Dec 29 17:30 gate_db_storage.sh*
+-rwxr-xr-x 1 lee 197121  2096 Dec 31 00:26 gate_e2e_happy_path.sh*
+-rwxr-xr-x 1 lee 197121  1238 Dec 29 15:03 gate_error_envelope_check.sh*
+-rwxr-xr-x 1 lee 197121  6165 Dec 31 23:03 gate_export_import.sh*
+-rwxr-xr-x 1 lee 197121  6007 Dec 31 23:03 gate_export_import.sh.bak.linksblock.20251231_150337*
+-rwxr-xr-x 1 lee 197121  2603 Dec 31 23:37 gate_export_preview_ui.sh*
+-rwxr-xr-x 1 lee 197121   578 Dec 29 14:55 gate_health_contract_check.sh*
+-rwxr-xr-x 1 lee 197121  5715 Jan  1 13:47 gate_models.sh*
+-rwxr-xr-x 1 lee 197121   196 Dec 29 14:55 gate_openapi_reachable.sh*
+-rwxr-xr-x 1 lee 197121  6277 Dec 31 21:00 gate_provider_adapter.sh*
+-rwxr-xr-x 1 lee 197121  3979 Jan  1 21:19 gate_provider_profiles.sh*
+-rwxr-xr-x 1 lee 197121   629 Dec 29 14:55 gate_request_id_propagation_check.sh*
+-rwxr-xr-x 1 lee 197121  5188 Dec 30 14:13 gate_reviews.sh*
+-rwxr-xr-x 1 lee 197121  5493 Dec 30 14:13 gate_runs_core.sh*
+-rwxr-xr-x 1 lee 197121  7575 Jan  1 22:25 gate_runs_trace_v11.sh*
+-rwxr-xr-x 1 lee 197121  6685 Dec 31 16:02 gate_shots_api.sh*
+-rwxr-xr-x 1 lee 197121  6606 Dec 31 19:59 gate_shots_ui.sh*
+-rwxr-xr-x 1 lee 197121 11261 Dec 31 10:03 gate_trash.sh*
+-rwxr-xr-x 1 lee 197121  1655 Dec 31 10:43 gate_trash_ui.sh*
+-rwxr-xr-x 1 lee 197121  2006 Dec 31 00:26 gate_web_routes.sh*
+-rwxr-xr-x 1 lee 197121  5727 Dec 29 09:22 pre_batch_env_init.sh*
+
+[ok] scripts/gate_web_routes.sh
+---- head(260) ----
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+cd "$ROOT"
+
+echo "== gate_web_routes: start =="
+
+if [ ! -f "apps/web/package.json" ]; then
+  echo "[err] missing apps/web/package.json" >&2
+  exit 2
+fi
+
+# Build (fast failure if routes/components break)
+echo "== [info] next build =="
+npm --prefix apps/web run build
+
+mkdir -p tmp
+LOG="tmp/gate_web_routes.web.log"
+: > "$LOG"
+
+echo "== [info] starting next (2000) =="
+npm --prefix apps/web run start >"$LOG" 2>&1 &
+PID=$!
+
+cleanup() {
+  set +e
+  if kill -0 "$PID" >/dev/null 2>&1; then
+    kill "$PID" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+BASE="http://127.0.0.1:2000"
+
+echo "== [info] wait for server =="
+for i in $(seq 1 40); do
+  code="$(curl -s -o /dev/null -w "%{http_code}" "$BASE/" || true)"
+  if [ "$code" = "200" ]; then
+    echo "[ok] server ready ($BASE)"
+    break
+  fi
+  sleep 0.5
+done
+
+code="$(curl -s -o /dev/null -w "%{http_code}" "$BASE/" || true)"
+if [ "$code" != "200" ]; then
+  echo "[err] server not ready; last http_code=$code" >&2
+  echo "== [debug] last logs ==" >&2
+  tail -n 120 "$LOG" >&2 || true
+  exit 3
+fi
+
+check_route () {
+  local path="$1"
+  local url="${BASE}${path}"
+  local code
+  code="$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)"
+  if [ "$code" != "200" ]; then
+    echo "[err] route failed: $path http_code=$code" >&2
+    echo "== [debug] last logs ==" >&2
+    tail -n 120 "$LOG" >&2 || true
+    exit 4
+  fi
+  echo "[ok] route ok: $path"
+}
+
+echo "== [info] probing required routes =="
+check_route "/"
+check_route "/library"
+check_route "/assets/test-asset"
+check_route "/generate"
+check_route "/projects"
+check_route "/projects/test-project"
+check_route "/series"
+check_route "/series/test-series"
+check_route "/shots"
+check_route "/shots/test-shot"
+
+echo "[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)"
+echo "== gate_web_routes: passed =="

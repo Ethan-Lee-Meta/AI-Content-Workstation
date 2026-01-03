@@ -1,0 +1,480 @@
+== [probe] ts_utc ==
+2026-01-01T12:03:02Z
+
+== [probe] repo ==
+root=E:/BaiduNetdiskDownload/ai-content-workstation
+branch=dev/v1_1-batch1-step020-data_model
+head=452af87f262e804ca207590ef3b4e6083651ad3f
+
+== [probe] status (short) ==
+## dev/v1_1-batch1-step020-data_model...origin/dev/v1_1-batch1-step020-data_model
+?? tmp/_probe_batch2.txt
+
+== [probe] backend modules layout ==
+total 4
+drwxr-xr-x 1 lee 197121 0 Jan  1 13:46 ./
+drwxr-xr-x 1 lee 197121 0 Jan  1 18:56 ../
+drwxr-xr-x 1 lee 197121 0 Jan  1 19:04 assets/
+drwxr-xr-x 1 lee 197121 0 Jan  1 13:46 characters/
+drwxr-xr-x 1 lee 197121 0 Jan  1 19:04 exports_imports/
+drwxr-xr-x 1 lee 197121 0 Jan  1 13:46 provider_profiles/
+drwxr-xr-x 1 lee 197121 0 Jan  1 19:04 reviews/
+drwxr-xr-x 1 lee 197121 0 Jan  1 19:04 runs/
+drwxr-xr-x 1 lee 197121 0 Jan  1 19:04 shots/
+drwxr-xr-x 1 lee 197121 0 Jan  1 19:04 trash/
+
+== [probe] provider_profiles module tree ==
+./__init__.py
+./models.py
+
+== [probe] characters module tree ==
+./__init__.py
+./models.py
+
+== [probe] existing routers pattern (top 60 lines) ==
+--- apps/api/app/modules/assets/router.py ---
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException, Query, Request
+
+from .schemas import AssetDeleteResponse, AssetDetailOut, AssetListOut, PageOut
+from .service import get_asset, list_assets, soft_delete_asset, traceability_for_asset
+
+router = APIRouter(tags=["assets"])
+
+
+def _clamp_limit(raw: int | None) -> int:
+    # lock: default=50, max=200
+    if raw is None:
+        return 50
+    try:
+        v = int(raw)
+    except Exception:
+        return 50
+    if v < 1:
+        v = 1
+    if v > 200:
+        v = 200
+    return v
+
+
+def _clamp_offset(raw: int | None) -> int:
+    if raw is None:
+        return 0
+    try:
+        v = int(raw)
+    except Exception:
+        return 0
+    return max(v, 0)
+
+
+@router.get("/assets", response_model=AssetListOut)
+def get_assets(
+    limit: int | None = Query(None, description="Max items to return (default 50, max 200)"),
+    offset: int | None = Query(None, description="Offset from start (default 0)"),
+    include_deleted: bool = Query(False, description="Include soft-deleted assets"),
+) -> AssetListOut:
+    lim = _clamp_limit(limit)
+    off = _clamp_offset(offset)
+
+    items, total = list_assets(limit=lim, offset=off, include_deleted=include_deleted)
+    has_more = (off + lim) < total
+
+    return AssetListOut(
+        items=items,  # Pydantic will coerce dict -> AssetDTO
+        page=PageOut(limit=lim, offset=off, total=total, has_more=has_more),
+    )
+
+
+@router.get("/assets/{asset_id}", response_model=AssetDetailOut)
+def get_asset_detail(asset_id: str) -> AssetDetailOut:
+    asset = get_asset(asset_id)
+    if asset is None:
+        # main.py should wrap HTTPException into error_envelope
+        raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
+
+    trace = traceability_for_asset(asset_id)
+    return AssetDetailOut(asset=asset, traceability=trace)
+
+
+@router.delete("/assets/{asset_id}", response_model=AssetDeleteResponse)
+def delete_asset(asset_id: str, request: Request) -> AssetDeleteResponse:
+    """Soft delete (idempotent)."""
+    rid = getattr(getattr(request, "state", None), "request_id", None)
+    return soft_delete_asset(asset_id=asset_id, request_id=rid)
+
+--- apps/api/app/modules/runs/router.py ---
+from __future__ import annotations
+
+from typing import Any, Dict
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import JSONResponse
+
+from .schemas import RunCreateIn, RunCreateOut, RunGetOut
+from .service import create_run as _create_run, get_run as _get_run, append_run_event as _append_run_event
+from .providers import get_provider, is_provider_enabled
+
+router = APIRouter(tags=["runs"])
+
+
+def _parse_bool(v: str) -> bool:
+    vv = (v or "").strip().lower()
+    return vv not in ("0", "false", "no", "off", "")
+
+
+def _provider_enabled(request: Request) -> bool:
+    # header override for deterministic gates (no server restart needed)
+    hv = request.headers.get("x-provider-enabled")
+    if hv is not None:
+        return _parse_bool(hv)
+    return is_provider_enabled(default=False)
+
+
+def _request_id(request: Request) -> str:
+    rid = request.headers.get("x-request-id")
+    if rid:
+        return str(rid)
+    st = getattr(request, "state", None)
+    rid2 = getattr(st, "request_id", None) if st is not None else None
+    return str(rid2) if rid2 else ""
+
+
+@router.post("/runs", response_model=RunCreateOut)
+def create_run(payload: RunCreateIn, request: Request) -> Any:
+    rid = _request_id(request)
+
+    run_id, prompt_pack_id, status0 = _create_run(
+        run_type=payload.run_type,
+        prompt_pack=payload.prompt_pack.model_dump(),
+    )
+
+    if not _provider_enabled(request):
+        # flag OFF: preserve legacy stub behavior (P0 regression safety)
+        return RunCreateOut(run_id=run_id, prompt_pack_id=prompt_pack_id, status=status0)
+
+    # flag ON: sync execution (P1 minimal), but MUST remain append-only (no UPDATE on runs)
+    _append_run_event(run_id, status="running", request_id=rid)
+
+    provider = get_provider()
+    inp: Dict[str, Any] = payload.prompt_pack.model_dump()
+    inp["run_type"] = payload.run_type
+
+    # gate hook: force provider failure without changing DTO
+    if request.headers.get("x-provider-force-fail") is not None and _parse_bool(request.headers.get("x-provider-force-fail") or ""):
+        inp["__force_fail__"] = True
+
+    try:
+        res = provider.execute(run_id=run_id, input=inp, request_id=rid)
+        rr: Dict[str, Any] = {
+            "asset_ids": [],
+            "provider": getattr(provider, "name", "unknown"),
+            "refs": res.result_refs,
+        }
+        if res.details:
+            rr["details"] = res.details
+        final_status = res.status or "succeeded"
+        _append_run_event(run_id, status=final_status, result_refs=rr, request_id=rid)
+        return RunCreateOut(run_id=run_id, prompt_pack_id=prompt_pack_id, status=final_status)
+    except Exception as e:
+        rr_fail: Dict[str, Any] = {
+            "asset_ids": [],
+            "provider": getattr(provider, "name", "unknown"),
+            "error": str(e),
+        }
+        _append_run_event(run_id, status="failed", result_refs=rr_fail, request_id=rid)
+        body = {
+
+--- apps/api/app/modules/reviews/router.py ---
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+from .schemas import ReviewCreateIn, ReviewCreateOut
+from .service import create_review
+
+router = APIRouter(tags=["reviews"])
+
+
+@router.post("/reviews", response_model=ReviewCreateOut)
+def post_review(payload: ReviewCreateIn) -> ReviewCreateOut:
+    # Rule: override must have reason
+    if payload.review_type == "override" and (payload.reason is None or str(payload.reason).strip() == ""):
+        raise HTTPException(status_code=400, detail="override requires reason")
+
+    try:
+        review_id = create_review(payload.model_dump())
+        return ReviewCreateOut(review_id=review_id, status="recorded")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"INTERNAL_ERROR: {e}")
+
+--- apps/api/app/modules/shots/router.py ---
+from __future__ import annotations
+
+import os
+import uuid
+import sqlite3
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Tuple
+
+from fastapi import APIRouter, Query, Path, Body, Request, Response
+from fastapi.responses import JSONResponse
+
+from app.modules.shots.schemas import (
+    ShotsListOut,
+    ShotListItem,
+    ShotDetailOut,
+    ShotOut,
+    LinkedRefsSummary,
+    ShotLinkCreateIn,
+    ShotLinkCreateOut,
+    ShotLinkDeleteOut,
+)
+
+router = APIRouter(tags=["shots"])
+
+
+# -------------------------
+# Small utilities (local)
+# -------------------------
+LIMIT_DEFAULT = 50
+LIMIT_MAX = 200
+UNLINK_PREFIX = "unlink::"
+
+
+def _utcnow_iso() -> str:
+    # ISO-8601 with Z; lexicographically sortable.
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _request_id(request: Request) -> str:
+    rid = request.headers.get("X-Request-Id")
+    if rid and rid.strip():
+        return rid.strip()
+    return uuid.uuid4().hex.upper()
+
+
+def _err(rid: str, status: int, error: str, message: str, details: Any = None) -> JSONResponse:
+    return JSONResponse(
+        status_code=status,
+        content={
+            "error": error,
+            "message": message,
+            "request_id": rid,
+            "details": details if details is not None else {},
+        },
+        headers={"X-Request-Id": rid},
+    )
+
+
+def _sqlite_path_from_url(url: str) -> str:
+    # Expected default: sqlite:///./data/app.db
+    if url.startswith("sqlite:///"):
+        return url[len("sqlite:///") :]
+    if url.startswith("sqlite://"):
+        return url[len("sqlite://") :]
+    raise ValueError(f"unsupported DATABASE_URL scheme: {url}")
+
+
+def _conn() -> sqlite3.Connection:
+    url = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
+    path = _sqlite_path_from_url(url)
+    c = sqlite3.connect(path, check_same_thread=False)
+    c.row_factory = sqlite3.Row
+    return c
+
+
+def _clamp_limit(limit: int) -> int:
+    if limit <= 0:
+        return LIMIT_DEFAULT
+    if limit > LIMIT_MAX:
+        return LIMIT_MAX
+
+== [probe] main.py include_router section ==
+from fastapi import FastAPI
+import os
+
+from app.modules.assets.router import router as assets_router
+from app.modules.exports_imports.router import router as exports_imports_router
+from app.modules.runs.router import router as runs_router
+from app.modules.reviews.router import router as reviews_router
+from app.modules.trash.router import router as trash_router
+from app.modules.shots.router import router as shots_router
+APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
+STORAGE_ROOT = os.getenv("STORAGE_ROOT", "./data/storage")
+
+app = FastAPI(title="AI Content Workstation API", version=APP_VERSION)
+app.include_router(assets_router)
+app.include_router(exports_imports_router)
+app.include_router(runs_router)
+app.include_router(reviews_router)
+app.include_router(trash_router)
+app.include_router(shots_router)
+
+
+# --- BATCH-1 STEP-030: health db/storage enrich (do not remove) ---
+# Purpose: keep /health top-level keys stable while ensuring db/storage details exist.
+try:
+    import json
+    from starlette.responses import Response
+    from app.core.db import db_health
+    from app.core.storage import storage_health
+
+    @app.middleware("http")
+    async def _batch1_health_enricher(request, call_next):
+        response = await call_next(request)
+        if request.url.path != "/health":
+            return response
+        try:
+            ct = response.headers.get("content-type", "")
+            if "application/json" not in ct:
+                return response
+            body = getattr(response, "body", None)
+            if not body:
+                return response
+
+            data = json.loads(body.decode("utf-8"))
+            if not isinstance(data, dict):
+                return response
+
+            data["db"] = db_health()
+            data["storage"] = storage_health()
+
+            new_body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            headers = dict(response.headers)
+            # avoid stale content-length
+            headers.pop("content-length", None)
+
+            return Response(
+                content=new_body,
+                media_type="application/json",
+                status_code=response.status_code,
+                headers=headers,
+            )
+        except Exception:
+            return response
+except Exception:
+    # do not break boot; gate_db_storage will surface missing deps.
+    pass
+# --- end BATCH-1 STEP-030 ---
+
+# === BATCH-0 OBSERVABILITY FOUNDATIONS (DO NOT EDIT WITHOUT CR) ===
+# Contract locks:
+# - Ports: web=2000, api=7000
+# - /health keys: status, version, db, storage, last_error_summary
+# - X-Request-Id in/out (missing -> generated; always echoed back; also on errors)
+# - Error envelope keys: error, message, request_id, details
+import os, json, uuid, datetime, logging
+from typing import Any, Dict, Optional
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+_log = logging.getLogger("app")
+if not _log.handlers:
+    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
+def _now_iso() -> str:
+    return datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+
+def _emit(level: str, event: str, message: str, request_id: Optional[str], module: str, **extra: Any) -> None:
+    payload: Dict[str, Any] = {
+        "ts": _now_iso(),
+        "level": level.lower(),
+        "message": message,
+        "request_id": request_id,
+        "event": event,
+        "module": module,
+    }
+    payload.update(extra)
+    print(json.dumps(payload, ensure_ascii=False), flush=True)
+
+def _err_envelope(error: str, message: str, request_id: Optional[str], details: Any, status_code: int):
+    headers = {}
+    if request_id:
+        headers["X-Request-Id"] = request_id
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": error,
+            "message": message,
+            "request_id": request_id,
+            "details": details,
+        },
+        headers=headers,
+    )
+
+@app.middleware("http")
+async def _request_id_mw(request: Request, call_next):
+    rid = request.headers.get("X-Request-Id") or uuid.uuid4().hex.upper()
+    request.state.request_id = rid
+    _emit("info", "http.request.start", f"{request.method} {request.url.path}", rid, __name__)
+    try:
+        resp = await call_next(request)
+    except Exception as e:
+        _emit("error", "http.request.exception", str(e), rid, __name__)
+        raise
+    resp.headers["X-Request-Id"] = rid
+    _emit("info", "http.request.end", f"{request.method} {request.url.path} -> {getattr(resp,'status_code',None)}", rid, __name__)
+    return resp
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_exc_handler(request: Request, exc: StarletteHTTPException):
+    rid = getattr(request.state, "request_id", None)
+    return _err_envelope("http_error", str(exc.detail), rid, {"status_code": exc.status_code}, exc.status_code)
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exc_handler(request: Request, exc: RequestValidationError):
+    rid = getattr(request.state, "request_id", None)
+    return _err_envelope("validation_error", "request validation failed", rid, exc.errors(), 422)
+
+@app.exception_handler(Exception)
+async def _unhandled_exc_handler(request: Request, exc: Exception):
+    rid = getattr(request.state, "request_id", None)
+    return _err_envelope("internal_error", "internal server error", rid, {"type": type(exc).__name__}, 500)
+# === END BATCH-0 OBSERVABILITY FOUNDATIONS ===
+
+
+@app.get("/health")
+def health():
+    # Contract keys are locked by BATCH-0
+    import os
+    return {
+        'status': 'ok',
+        'version': os.getenv('APP_VERSION', '0.1.0'),
+        'db': {'status': 'ok', 'kind': os.getenv('DB_KIND', 'sqlite'), 'path': os.getenv('DB_PATH', './data/app.db')},
+        'storage': {'status': 'ok', 'root': os.getenv('STORAGE_ROOT', './data/storage')},
+        'last_error_summary': None,
+    }
+
+== [probe] error envelope / request-id helpers (grep) ==
+apps/api/app\main.py
+apps/api/app\modules\assets\router.py
+apps/api/app\modules\assets\service.py
+apps/api/app\modules\exports_imports\router.py
+apps/api/app\modules\runs\providers\base.py
+apps/api/app\modules\runs\providers\mock_provider.py
+apps/api/app\modules\runs\router.py
+apps/api/app\modules\runs\service.py
+apps/api/app\modules\shots\router.py
+apps/api/app\modules\trash\router.py
+apps/api/app\modules\trash\service.py
+
+== [probe] links helpers (grep for rel / tombstone / unlink) ==
+apps/api/app\modules\assets\schemas.py
+apps/api/app\modules\assets\service.py
+apps/api/app\modules\exports_imports\service.py
+apps/api/app\modules\shots\router.py
+apps/api/app\modules\shots\schemas.py
+
+== [probe] prompt_packs presence (grep) ==
+apps/api/app\modules\exports_imports\service.py
+apps/api/app\modules\runs\router.py
+apps/api/app\modules\runs\schemas.py
+apps/api/app\modules\runs\service.py
+apps/api/app\modules\shots\router.py
+apps/api/app\modules\shots\schemas.py
+
+== [probe] done: wrote tmp/_probe_batch2.txt ==
+

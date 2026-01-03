@@ -1,0 +1,14 @@
+== gate_append_only_ref_sets: start ==
+== [info] tmpdb=E:/01Small_Tools/AI_Content_Generation_Workstation/ai-content-workstation/tmp/gate_append_only_ref_sets.28120/app.db ==
+== [info] using tmpdb=tmp\gate_append_only_ref_sets.28120\app.db ==
+[ok] triggers present (tmpdb)
+[ok] unique index present (tmpdb): uq_character_ref_sets_character_id_version
+[ok] unique index present (tmpdb): uq_provider_profiles_global_default
+[ok] inserted gate_test rows
+[ok] unique constraint enforced: UNIQUE constraint failed: character_ref_sets.character_id, character_ref_sets.version
+[ok] append-only UPDATE blocked: append-only: character_ref_sets cannot be updated
+[ok] append-only DELETE blocked: append-only: character_ref_sets cannot be deleted
+[ok] inserted provider_profiles default=1 row
+[ok] global default unique enforced: UNIQUE constraint failed: provider_profiles.is_global_default
+[ok] gate_append_only_ref_sets passed
+== gate_append_only_ref_sets: passed ==

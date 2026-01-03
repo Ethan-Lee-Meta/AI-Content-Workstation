@@ -1,21 +1,167 @@
 from fastapi import FastAPI
 import os
 
+from app.modules.assets.router import router as assets_router
+from app.modules.characters.router import router as characters_router
+from app.modules.exports_imports.router import router as exports_imports_router
+from app.modules.runs.router import router as runs_router
+from app.modules.reviews.router import router as reviews_router
+from app.modules.trash.router import router as trash_router
+from app.modules.shots.router import router as shots_router
+from app.modules.provider_profiles.router import router as provider_profiles_router
 APP_VERSION = os.getenv("APP_VERSION", "0.1.0")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 STORAGE_ROOT = os.getenv("STORAGE_ROOT", "./data/storage")
 
 app = FastAPI(title="AI Content Workstation API", version=APP_VERSION)
+app.include_router(assets_router)
+app.include_router(characters_router)
+app.include_router(exports_imports_router)
+app.include_router(runs_router)
+app.include_router(reviews_router)
+app.include_router(trash_router)
+app.include_router(shots_router)
+app.include_router(provider_profiles_router)
+
+
+# --- BATCH-1 STEP-030: health db/storage enrich (do not remove) ---
+# Purpose: keep /health top-level keys stable while ensuring db/storage details exist.
+try:
+    import json
+    from starlette.responses import Response
+    from app.core.db import db_health
+    from app.core.storage import storage_health
+
+    @app.middleware("http")
+    async def _batch1_health_enricher(request, call_next):
+        response = await call_next(request)
+        if request.url.path != "/health":
+            return response
+        try:
+            ct = response.headers.get("content-type", "")
+            if "application/json" not in ct:
+                return response
+            body = getattr(response, "body", None)
+            if not body:
+                return response
+
+            data = json.loads(body.decode("utf-8"))
+            if not isinstance(data, dict):
+                return response
+
+            data["db"] = db_health()
+            data["storage"] = storage_health()
+
+            new_body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            headers = dict(response.headers)
+            # avoid stale content-length
+            headers.pop("content-length", None)
+
+            return Response(
+                content=new_body,
+                media_type="application/json",
+                status_code=response.status_code,
+                headers=headers,
+            )
+        except Exception:
+            return response
+except Exception:
+    # do not break boot; gate_db_storage will surface missing deps.
+    pass
+# --- end BATCH-1 STEP-030 ---
+
+# === BATCH-0 OBSERVABILITY FOUNDATIONS (DO NOT EDIT WITHOUT CR) ===
+# Contract locks:
+# - Ports: web=2000, api=7000
+# - /health keys: status, version, db, storage, last_error_summary
+# - X-Request-Id in/out (missing -> generated; always echoed back; also on errors)
+# - Error envelope keys: error, message, request_id, details
+import os, json, uuid, datetime, logging
+from typing import Any, Dict, Optional
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+_log = logging.getLogger("app")
+if not _log.handlers:
+    logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
+def _now_iso() -> str:
+    return datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).isoformat()
+
+def _emit(level: str, event: str, message: str, request_id: Optional[str], module: str, **extra: Any) -> None:
+    payload: Dict[str, Any] = {
+        "ts": _now_iso(),
+        "level": level.lower(),
+        "message": message,
+        "request_id": request_id,
+        "event": event,
+        "module": module,
+    }
+    payload.update(extra)
+    print(json.dumps(payload, ensure_ascii=False), flush=True)
+
+def _err_envelope(error: str, message: str, request_id: Optional[str], details: Any, status_code: int):
+    headers = {}
+    if request_id:
+        headers["X-Request-Id"] = request_id
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": error,
+            "message": message,
+            "request_id": request_id,
+            "details": details,
+        },
+        headers=headers,
+    )
+
+@app.middleware("http")
+async def _request_id_mw(request: Request, call_next):
+    rid = request.headers.get("X-Request-Id") or uuid.uuid4().hex.upper()
+    request.state.request_id = rid
+    _emit("info", "http.request.start", f"{request.method} {request.url.path}", rid, __name__)
+    try:
+        resp = await call_next(request)
+    except Exception as e:
+        _emit("error", "http.request.exception", str(e), rid, __name__)
+        raise
+    resp.headers["X-Request-Id"] = rid
+    _emit("info", "http.request.end", f"{request.method} {request.url.path} -> {getattr(resp,'status_code',None)}", rid, __name__)
+    return resp
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_exc_handler(request: Request, exc: StarletteHTTPException):
+    rid = getattr(request.state, "request_id", None)
+    return _err_envelope("http_error", str(exc.detail), rid, {"status_code": exc.status_code}, exc.status_code)
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exc_handler(request: Request, exc: RequestValidationError):
+    rid = getattr(request.state, "request_id", None)
+    errs = exc.errors()
+    # pydantic v2 may include non-JSON-serializable objects in ctx; make it JSON-safe
+    try:
+        safe = json.loads(json.dumps(errs, ensure_ascii=False, default=str))
+    except Exception:
+        safe = [{"error": "unserializable_validation_errors"}]
+    return _err_envelope("validation_error", "request validation failed", rid, safe, 422)
+
+@app.exception_handler(Exception)
+async def _unhandled_exc_handler(request: Request, exc: Exception):
+    rid = getattr(request.state, "request_id", None)
+    return _err_envelope("internal_error", "internal server error", rid, {"type": type(exc).__name__}, 500)
+# === END BATCH-0 OBSERVABILITY FOUNDATIONS ===
+
 
 @app.get("/health")
 def health():
-    # ARCH expectation shape: status/version/db/storage/last_error_summary
-    # Keep it minimal and deterministic for local-dev.
-    db_path = "./data/app.db"  # aligned to DATABASE_URL default in ARCH
+    # Contract keys are locked by BATCH-0
+    import os
     return {
-        "status": "ok",
-        "version": APP_VERSION,
-        "db": {"status": "ok", "kind": "sqlite", "path": db_path},
-        "storage": {"status": "ok", "root": STORAGE_ROOT},
-        "last_error_summary": None,
+        'status': 'ok',
+        'version': os.getenv('APP_VERSION', '0.1.0'),
+        'db': {'status': 'ok', 'kind': os.getenv('DB_KIND', 'sqlite'), 'path': os.getenv('DB_PATH', './data/app.db')},
+        'storage': {'status': 'ok', 'root': os.getenv('STORAGE_ROOT', './data/storage')},
+        'last_error_summary': None,
     }

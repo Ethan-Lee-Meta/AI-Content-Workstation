@@ -1,0 +1,472 @@
+AI_SPECDIGEST:
+  meta:
+    artifact_id: spec-ai-content-workstation-20260101
+    version: 1.1.0
+    status: frozen
+    language: zh-CN
+    created_at: <ISO8601>
+    frozen_at: <ISO8601>
+    owners:
+      primary: SpecAnalyst
+      approver: User
+    fingerprints:
+      spec_sha256: <SPEC_SHA256_TBD>
+      conversation_ref: "<optional: reference>"
+    change_policy:
+      frozen_immutable: true
+      change_level: CR-L1
+      owner_window: ChangeCoordinator
+      change_flow:
+        - After freeze, any change MUST be proposed via SPEC_CHANGE_REQUEST (CR-L1)
+        - ChangeCoordinator evaluates impact, propagates to ARCH/PLAN/QA
+        - If approved, bump version and update spec_sha256
+      note: "Frozen spec is SSOT. No oral changes."
+
+  human_readable_doc:
+    executive_summary:
+      core_value: >
+        在单机单用户环境下，将“AI 分析（可解释建议）→ 组装提示词（可选）→ 最终提示词（必有）→
+        图/视频生成 → 审核（量化+可覆写留痕）→ 资产入库 → 追溯复用 →（可选）Series/Projects 组织”
+        固化为可验证、可追踪、可复用的闭环。
+      target_users: >
+        需要高频生成与复用 AI 图片/视频素材的个人创作者/制片人/内容管线搭建者；强调人物一致、风格一致、
+        工作流可控与历史可回溯。
+      key_differentiators:
+        - Evidence Chain：原始输入 →（可选）组装Prompt → 最终Prompt → Run → Review → Asset（不可静默覆盖）
+        - Character 角色库：通过参考集确认，跨 Generate/Series/Projects 复用，降低人物漂移
+        - Review 量化与治理：自动通过+抽检与人工覆写（必须留因），形成质量闭环
+        - 可携带交付（P1）：加密导出目录包、无导入预览、导入迁移保持关系与证据链一致
+    problem_statement:
+      - 生成素材分散：难以统一浏览、筛选、定位与复用
+      - 人物/风格漂移：跨批次或跨场景的一致性缺乏可控抓手
+      - 审核口径不统一：无法量化判断、无法留痕复盘
+      - 复用成本高：无法从历史输入快速派生并保持证据链
+      - 交付/迁移缺乏可追溯：外部交付后难以证明来源与关系
+    non_goals_highlight:
+      - 不做：多用户/权限/RBAC/协作
+      - 不做：云端同步/共享资产库
+      - 不做：模型训练/微调/LoRA训练管理
+      - 不做：NLE级剪辑合成与渲染（转场/字幕/音轨/时间线渲染）
+      - 不锁定：具体数据库表结构、API字段名、具体路由/接口设计、具体SDK/版本（由 ARCH/实现窗口定义）
+    ui_ia_concepts:
+      primary_workspaces:
+        - Library: 全局资产总览（图片+视频），筛选排序，进入详情追溯
+        - Generate: t2i/i2i/t2v/i2v 入口；提示词链路；角色选择；运行状态与结果
+        - Characters: 角色管理；参考集；确认状态；被引用与产物追溯
+        - Trash: 回收站；还原；清空
+        - Settings: ProviderProfile 管理；默认继承；语言/主题/密度
+      optional_workspaces_future:
+        - Series: 轻叙事/同风格内容线（版本化简介与组装Prompt，建议式生成）
+        - Projects: 强叙事/分集分镜（分析、设定、分镜、素材生成与编排）
+    glossary:
+      - term: Asset
+        definition: "系统管理的产出物：图片或视频；具备最小元数据与追溯关联。"
+      - term: PromptPack
+        definition: "一次生成前的不可变输入快照：原始输入 +（可选）组装Prompt + 最终Prompt + 引用上下文（角色/系列/项目等）。"
+      - term: Run
+        definition: "一次生成执行记录：引用 PromptPack、引用 ProviderProfile、状态与结果摘要。"
+      - term: Review
+        definition: "对生成结果的审核记录：量化分数、overall_pass、原因、以及（可选）人工覆写。"
+      - term: Character
+        definition: "可复用角色档案：参考集 + 确认状态 + 一致性规则；用于人物一致性与追溯。"
+      - term: ProviderType
+        definition: "系统支持的一类能力类型（需要后端具备适配执行能力）。"
+      - term: ProviderProfile
+        definition: "某个 ProviderType 的配置实例（在 Settings 中新增/编辑/设默认；生成时可覆写）。"
+      - term: Evidence Chain
+        definition: "从输入到输出的可追溯链：PromptPack/Run/Review/Asset 等之间的关联关系。"
+
+  yaml_spec:
+    scope:
+      in:
+        - id: S1
+          name: 统一资产库（Library）+ 详情追溯
+          priority: P0
+          includes:
+            - 全局展示所有图片与视频资产（来源包含：Generate、Series、Projects）
+            - 支持至少按：类型（图/视频）、来源、时间、状态（正常/回收站）进行筛选/排序
+            - 资产详情可查看：关联 PromptPack/Run/Review 以及（如有）Character/Series/Project/Shot 的引用关系
+            - 从资产详情可发起“复用再生成”（概念层：形成新的运行/新版本）
+          excludes:
+            - 不做：复杂标签体系/语义搜索/向量检索（可列入未来）
+            - 不做：素材剪辑编辑（NLE）
+          future_candidates:
+            - 标签与批量标注
+            - 相似资产聚类与推荐
+            - 更丰富的排序与筛选维度（评分、角色、系列等）
+        - id: S2
+          name: Generate 工作台（t2i/i2i/t2v/i2v）+ 提示词链路（组装可选）
+          priority: P0
+          includes:
+            - 支持 4 类生成入口：t2i、i2i、t2v、i2v
+            - 提示词链路语义冻结：
+              - 原始输入（raw_input）：必有
+              - 组装Prompt（assembly_prompt）：可选（D-007）
+              - 最终Prompt（final_prompt）：必有
+            - 每次生成可选择 0..N 个 Character（D-009），并写入追溯关联
+            - 生成结果默认入库为 Asset，并建立 Evidence Chain
+            - 失败生成也必须保留运行记录与原因，并允许重试
+          excludes:
+            - 不锁定：具体模型选择、参数面板细节、执行机制（由 ARCH/实现）
+          future_candidates:
+            - 批量脚本化生成
+            - 模板化 Prompt 组件与版本对比
+        - id: S3
+          name: Review 审核（量化+覆写留痕）与证据链不覆盖
+          priority: P0
+          includes:
+            - 审核输出字段（语义冻结）：
+              - face_consistency_score（0..1）
+              - style_consistency_score（0..1）
+              - quality_score（0..1）
+              - overall_pass（boolean）
+              - reasons[]（字符串列表）
+            - 默认策略：自动通过 + 抽检（D-002, D-003）
+            - 人工覆写必须填写原因并入证据链
+            - 证据链记录不可静默覆盖：复用/修改必须产生新运行/新版本（概念层）
+          excludes:
+            - 不锁定：评分算法与实现方式（可先人工/规则）
+          future_candidates:
+            - 更严格的自动评分与对比评测
+        - id: S4
+          name: Trash 回收站（软删除+还原）
+          priority: P0
+          includes:
+            - 删除默认软删除进入回收站（D-005）
+            - 回收站支持还原（还原后保持追溯关联不丢失）
+            - 回收站支持清空（清空语义由实现定义，但不得破坏历史证据链的最小可审计要求）
+          excludes:
+            - 不做：复杂权限与多级回收策略
+        - id: S5
+          name: Characters 角色库（角色管理+确认门槛+跨工作区选择）
+          priority: P0
+          includes:
+            - 角色创建/编辑：名称、描述（外观要点/气质/服饰偏好/禁忌项）
+            - 参考集（Reference Set）管理：上传图片（可选视频）并记录版本
+            - 角色状态：draft（草稿）/ confirmed（已确认可用）/ archived（归档只读）
+            - 角色确认门槛（D-008）：满足最小覆盖后允许标记为 confirmed
+            - 角色可在 Generate 中选择参与创作；产物可追溯到角色与参考集版本
+            - 角色可在 Series/Projects 中被引用（需求层：至少可选择与可追溯显示）
+          excludes:
+            - 不做：训练/微调/LoRA 管理
+            - 不承诺：任何风格/角度下100%同脸（以目标阈值与可解释风险提示为准）
+          future_candidates:
+            - 多角色关系网（阵营/家族/关系）
+            - 自动聚类与角色去重
+            - 角色多形态（常服/战斗服/成长阶段）
+        - id: S6
+          name: Settings（ProviderProfile 管理 + 默认继承 + 语言/主题/密度）
+          priority: P1
+          includes:
+            - Settings 支持管理 ProviderProfile（配置实例）：
+              - 新增/编辑/设默认/删除（删除策略由实现决定）
+            - ProviderType（能力类型）由系统提供“支持清单 + 配置项语义描述（字段含义/是否必填/是否敏感）”
+              - 前端根据该描述渲染表单
+              - 新增 ProviderType 需后端增加适配能力后发布（D-014）
+            - 默认继承链（D-010）：
+              - 全局默认 ProviderProfile → 工作区默认（Generate/Series/Projects）→ 单次生成覆写
+              - 覆写不反向改写默认
+            - 语言：至少 zh-CN/en-US（D-011）
+            - 主题/密度：Light/Dark × Comfortable/Compact（D-012）
+          excludes:
+            - 不锁定：具体供应商SDK、模型名、参数细节
+            - 不做：多用户配置云同步
+          future_candidates:
+            - 工作区级（具体 Series/Project）更细粒度覆写
+            - 配置模板导入导出
+        - id: S7
+          name: Series（轻叙事/同风格内容线）
+          priority: P2
+          includes:
+            - 创建 Series：名称、简介；维护“系列组装Prompt（可为空）”并具备版本历史
+            - Series 内资产浏览（复用 Library 的筛选/排序体验，带 Series 过滤）
+            - 建议式生成：系统可基于 Series 信息 + 已保留资产给出“提示词建议/一致性风险提示”，用户确认后生成
+            - 保留/不保留：不保留可进入回收站并可还原；保留纳入后续建议依据
+          excludes:
+            - 不要求：复杂剧情前后连续性（Series 不等同剧集）
+            - 不锁定：分析方法实现（仅冻结“可解释建议 + 人工采纳”定位，见 D-013）
+        - id: S8
+          name: Projects（强叙事/分集分镜）
+          priority: P3
+          includes:
+            - 创建 Project：项目简介、整体剧情介绍；均可更新且有历史
+            - 项目分析输出（需求对象）：分集设计、人物设定、场景设定、道具设定、世界观规则、对白风格、镜头语言规范
+            - 单集流程可手动为主并允许自动建议（默认，见 D-015 若未来需要可升格）
+            - 分镜驱动素材生成与编排（不做NLE剪辑渲染）
+          excludes:
+            - 不做：端到端全自动成片质量承诺
+            - 不做：NLE渲染输出
+      out:
+        - id: O1
+          name: 多用户登录 + RBAC
+          reason: 本期单机单用户
+        - id: O2
+          name: NLE级剪辑合成与渲染输出
+          reason: 只做素材生成与引用编排
+        - id: O3
+          name: 模型训练/微调/LoRA训练管理
+          reason: 不在范围
+        - id: O4
+          name: 云端同步/共享资产库
+          reason: 不在范围
+
+    workflows:
+      - id: WF1
+        name: Happy Path — 生成并入库
+        steps:
+          - 用户选择生成类型（t2i/i2i/t2v/i2v）
+          - 用户输入 raw_input（必填）
+          - （可选）用户填写 assembly_prompt 或选择使用模板化组装
+          - 系统形成 final_prompt（必有）并生成 PromptPack（不可变快照）
+          - （可选）用户选择 0..N 个 Character（标记 primary_character，默认 1）
+          - 用户提交生成，系统展示状态（进行中/成功/失败）
+          - 成功：展示结果与运行信息；自动审核并按抽检策略处理
+          - 入库：生成 Asset，建立 PromptPack/Run/Review/Asset 的 Evidence Chain
+        exceptions:
+          - id: EX-WF1-1
+            condition: 生成失败
+            expected_handling: 记录失败原因；允许重试；失败记录保留并可追溯
+          - id: EX-WF1-2
+            condition: 审核未通过
+            expected_handling: 记录原因；允许调整输入重试；未通过记录保留
+      - id: WF2
+        name: 浏览与追溯复用
+        steps:
+          - 用户在 Library 浏览全部资产并筛选排序
+          - 打开资产详情，查看 PromptPack/Run/Review 与角色/系列/项目引用关系
+          - 从任一历史节点发起复用，产生新运行/新版本（概念层）
+      - id: WF3
+        name: Trash 删除与还原
+        steps:
+          - 用户删除资产 → 进入回收站
+          - 用户在回收站还原 → 回到默认列表且追溯关联不丢失
+          - 用户清空回收站 → 行为需可审计（最低限度保留证据链摘要要求由实现决定）
+      - id: WF4
+        name: Settings 配置与默认继承
+        steps:
+          - 用户在 Settings 选择 ProviderType（来自系统支持清单）
+          - 用户新增 ProviderProfile（配置实例）并设为全局默认
+          - Generate/Series/Projects 默认继承该 ProviderProfile
+          - 单次生成允许覆写 ProviderProfile（不反写默认）
+
+    acceptance_criteria:
+      - id: AC-001
+        priority: P0
+        title: Library 总览展示所有图片与视频且可进入详情
+        checklist:
+          - 无需进入 Series/Projects，也可看到全部图片+视频列表
+          - 至少支持：类型/来源/时间/状态（正常/回收站）的筛选或排序
+          - 可打开任一资产详情
+      - id: AC-002
+        priority: P0
+        title: 资产详情具备 Evidence Chain 追溯信息
+        checklist:
+          - 详情可见关联的 PromptPack/Run/Review
+          - 若有关联 Character/Series/Project/Shot，必须可见且可定位
+      - id: AC-003
+        priority: P0
+        title: 4 类生成入口可发起生成且结果默认入库可追溯
+        checklist:
+          - t2i/i2i/t2v/i2v 均可发起生成
+          - 成功生成的结果默认入库为 Asset
+          - Asset 可追溯到 PromptPack 与 Run
+      - id: AC-004
+        priority: P0
+        title: Review 量化输出 + 抽检 + 覆写留痕
+        checklist:
+          - 审核至少输出：face_consistency_score、style_consistency_score、quality_score、overall_pass、reasons[]
+          - 通过项按默认抽检比例抽检（默认5%）或标记通过
+          - 人工覆写必须填写原因并可追溯
+      - id: AC-007
+        priority: P0
+        title: Characters 角色确认后可在 Generate 中选择并可追溯
+        checklist:
+          - 角色参考集满足 D-008 后可标记为 confirmed
+          - Generate 中可选择该角色并生成
+          - 生成结果 Asset 详情可追溯到角色与参考集版本
+      - id: AC-008
+        priority: P0
+        title: 提示词链路可追溯（组装Prompt可选）
+        checklist:
+          - 每次生成必须可追溯 raw_input 与 final_prompt
+          - assembly_prompt 可为空；为空时必须明确标记“未使用组装Prompt”
+          - 从 Asset 详情可反查到上述链路
+      - id: AC-009
+        priority: P0
+        title: Trash 回收站可还原且不丢失追溯关联
+        checklist:
+          - 删除进入回收站
+          - 还原回到默认列表
+          - 还原后 PromptPack/Run/Review/Character 等追溯关联不丢失
+      - id: AC-010
+        priority: P1
+        title: Settings 可新增 ProviderProfile 并设默认；工作区继承且可覆写
+        checklist:
+          - Settings 可基于系统支持的 ProviderType 新增 ProviderProfile
+          - 可设置全局默认 ProviderProfile
+          - Generate 默认继承全局默认；单次生成可覆写
+          - 前端不能创建未知 ProviderType；新增 ProviderType 必须由后端提供能力后再出现
+
+    decisions:
+      - id: D-001
+        topic: Project/Series 是否必填
+        decision: "允许为空，生成后再归档。"
+        rationale: "降低使用门槛，满足全局资产总览。"
+        impact: "需要支持未归档资产的展示/筛选/归档入口（需求层）。"
+        status: confirmed
+      - id: D-002
+        topic: 审核策略
+        decision: "自动通过 + 抽检。"
+        rationale: "平衡效率与质量治理。"
+        impact: "需要抽检标记与覆写留痕。"
+        status: confirmed
+      - id: D-003
+        topic: 抽检比例
+        decision: "通过项默认抽检 5%。"
+        rationale: "MVP阶段以低成本发现问题。"
+        impact: "抽检比例应可配置（实现由后续决定）。"
+        status: confirmed
+      - id: D-004
+        topic: 分数标尺与通过规则
+        decision: "分数范围 0..1；overall_pass = face>=0.80 AND style>=0.80 AND quality>=0.70。"
+        rationale: "冻结可执行的最小门槛。"
+        impact: "Review 输出必须包含分数与结论。"
+        status: confirmed
+      - id: D-005
+        topic: 删除策略
+        decision: "软删除（回收站）+ 可清空。"
+        rationale: "防误删且支持整理。"
+        impact: "默认列表排除 deleted；回收站可操作。"
+        status: confirmed
+      - id: D-006
+        topic: 无导入预览最低能力（交付/迁移）
+        decision: "缩略图/代理预览 + 元数据与关系/证据链只读浏览；视频封面抽帧；不承诺全质量实时播放。"
+        rationale: "满足可预览交付但避免重型承诺。"
+        impact: "导出包需包含最小代理信息（需求层）。"
+        status: confirmed
+      - id: D-007
+        topic: Generate 是否必须填写组装Prompt
+        decision: "assembly_prompt 可选；raw_input 与 final_prompt 必有且可追溯；若存在 assembly_prompt 也必须可追溯。"
+        rationale: "兼顾低门槛与高级提示词工程。"
+        impact: "证据链必须能表达缺省路径。"
+        status: confirmed
+      - id: D-008
+        topic: 角色确认参考集门槛
+        decision: >
+          confirmed 最小门槛：至少 8 张参考图片，覆盖 正面/三分之二侧/侧面（各≥1），并包含至少 2 种表情与 2 种光照。
+          推荐门槛：12 张（增加不同服饰/表情/场景以提高鲁棒性）。可选：短视频或关键帧作为补充。
+        rationale: "用可执行门槛提升人物一致性稳定性。"
+        impact: "角色页需展示覆盖度与确认状态；未达标为 draft。"
+        status: confirmed
+      - id: D-009
+        topic: 多角色选择语义
+        decision: "每次生成允许选择 0..N 角色，但必须标记 primary_character（默认 1 个）；多角色只保证追溯，不承诺评分准确。"
+        rationale: "兼容群像场景但避免MVP阶段过度承诺。"
+        impact: "Review 与建议输出以 primary_character 为主。"
+        status: confirmed
+      - id: D-010
+        topic: ProviderProfile 默认继承
+        decision: "全局默认 → 工作区默认（Generate/Series/Projects）→ 单次生成覆写；覆写不反写默认。"
+        rationale: "减少重复配置，保持可控。"
+        impact: "UI需明确当前生效配置与来源。"
+        status: confirmed
+      - id: D-011
+        topic: 语言范围
+        decision: "至少 zh-CN 与 en-US；缺失文案回退默认语言。"
+        rationale: "满足双语需求且可渐进完善。"
+        impact: "关键页面必须双语可用。"
+        status: confirmed
+      - id: D-012
+        topic: 主题/密度
+        decision: "默认 Light + Comfortable；支持 Light/Dark 与 Comfortable/Compact 组合。"
+        rationale: "兼顾可读性与效率。"
+        impact: "组件在两种密度下不破版。"
+        status: confirmed
+      - id: D-013
+        topic: Series/Projects 的“分析与学习”定位
+        decision: >
+          “分析与学习”定义为：系统基于（a）简介/组装Prompt版本，（b）已保留资产与其Review，
+          输出可解释的建议（提示词建议、一致性风险提示、must/should/avoid要点），并允许用户手动采纳。
+        rationale: "保持技术中立与人类在环，避免自动漂移。"
+        impact: "建议输出应可追溯引用来源（引用哪些版本/哪些资产）。"
+        status: confirmed
+      - id: D-014
+        topic: Settings 是否开放“API 添加”
+        decision: >
+          Settings 对用户开放“ProviderProfile（配置实例）”的新增/编辑；ProviderType（能力类型）由后端控制并提供
+          “支持清单 + 配置项语义描述”。前端根据描述渲染表单，从而无需后端改动即可新增不同的 ProviderProfile；
+          但新增 ProviderType 需要后端新增适配能力后发布。
+        rationale: "兼顾前端可扩展与后端可执行性，避免“前端能配但无法跑”。"
+        impact: "后端需提供能力类型与配置项描述的可获取机制（不在本spec定义接口形式）。"
+        status: confirmed
+
+    non_functional_requirements:
+      traceability:
+        requirements:
+          - "Evidence Chain 不可静默覆盖；复用/修改必须产生新运行或新版本（概念层）。"
+          - "从 Asset 详情可反查 raw_input / assembly_prompt(可选) / final_prompt / Run / Review / Character(如有)。"
+      security:
+        requirements:
+          - "ProviderProfile 的敏感凭据必须按秘密信息对待；保存后 UI 不得明文回显（可显示已配置状态）。"
+          - "导出目录包必须可加密；密钥不得与包明文同存。"
+      usability:
+        requirements:
+          - "核心任务（提交生成→查看结果）交互层级≤3。"
+          - "高频操作支持批处理（如批量选择/删除/还原）。"
+      reliability:
+        requirements:
+          - "生成失败可重试且保留失败记录用于追溯。"
+          - "审核未通过可重试且保留记录。"
+      localization:
+        requirements:
+          - "语言切换不影响核心流程可用性；缺失文案回退默认语言。"
+      performance_defaults:
+        requirements:
+          - "列表操作需快速反馈：用户操作后≤1s获得可见反馈（分页/缓存策略由实现决定）。"
+          - "生成状态刷新：秒级刷新可接受；不要求实时逐帧。"
+
+    assumptions:
+      - "单机单用户。"
+      - "MVP 优先，后续通过 CR 演进。"
+
+    open_questions: []
+
+    traceability_map:
+      scope_to_workflows:
+        - scope_id: S1
+          workflow_ids: [WF2]
+        - scope_id: S2
+          workflow_ids: [WF1, WF2]
+        - scope_id: S3
+          workflow_ids: [WF1, WF2]
+        - scope_id: S4
+          workflow_ids: [WF3]
+        - scope_id: S5
+          workflow_ids: [WF1, WF2]
+        - scope_id: S6
+          workflow_ids: [WF4]
+      scope_to_acceptance:
+        - scope_id: S1
+          acceptance_ids: [AC-001, AC-002]
+        - scope_id: S2
+          acceptance_ids: [AC-003, AC-008]
+        - scope_id: S3
+          acceptance_ids: [AC-004]
+        - scope_id: S4
+          acceptance_ids: [AC-009]
+        - scope_id: S5
+          acceptance_ids: [AC-007]
+        - scope_id: S6
+          acceptance_ids: [AC-010]
+
+  freeze_check:
+    open_questions_empty: true
+    all_decisions_confirmed: true
+    all_P0_scope_items_have_acceptance: true
+    NFRs_have_targets_or_defaults: true
+
+  handoff_summary:
+    spec_version: 1.1.0
+    status: frozen
+    spec_sha256: <SPEC_SHA256_TBD>
+    downstream_must_receive: [spec_version, status, spec_sha256]

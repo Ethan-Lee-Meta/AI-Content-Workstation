@@ -1,0 +1,69 @@
+== gate_ac_002: start ==
+== [info] check api reachable ==
+[ok] api reachable: /openapi.json
+== [info] pick an asset id from /assets list (if any) ==
+[ok] picked asset_id=EA89F56409A04B87B5CDA7FA64D605C2
+[ok] /assets/:id returns an object
+== [info] validate error envelope keys for non-existent asset (should include request_id) ==
+[ok] error envelope includes error/message/request_id/details
+== [info] web routes accessible (baseline) ==
+== gate_web_routes: start ==
+== [info] next build ==
+
+> apps-web@0.1.0 build
+> next build
+
+▲ Next.js 16.1.0 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.6s
+  Running TypeScript ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/6) ...
+  Generating static pages using 19 workers (1/6) 
+  Generating static pages using 19 workers (2/6) 
+  Generating static pages using 19 workers (4/6) 
+✓ Generating static pages using 19 workers (6/6) in 944.2ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
+├ ƒ /assets/[asset_id]
+├ ƒ /generate
+├ ƒ /library
+├ ○ /projects
+├ ƒ /projects/[project_id]
+├ ○ /series
+├ ƒ /series/[series_id]
+├ ƒ /shots
+├ ƒ /shots/[shot_id]
+├ ƒ /transfer
+└ ƒ /trash
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+== [info] starting next (2000) ==
+== [info] wait for server ==
+[ok] server ready (http://127.0.0.1:2000)
+== [info] probing required routes ==
+[ok] route ok: /
+[ok] route ok: /library
+[ok] route ok: /assets/test-asset
+[ok] route ok: /generate
+[ok] route ok: /projects
+[ok] route ok: /projects/test-project
+[ok] route ok: /series
+[ok] route ok: /series/test-series
+[ok] route ok: /shots
+[ok] route ok: /shots/test-shot
+[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
+== gate_web_routes: passed ==
+== [info] verify asset detail required panels markers in source (stable gate) ==
+[ok] asset detail source contains required panel markers
+== gate_ac_002: passed ==

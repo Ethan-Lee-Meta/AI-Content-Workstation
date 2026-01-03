@@ -1,0 +1,6 @@
+== gate_shots_api: start ==
+[ok] shots list returns items+page with required keys
+[ok] shots detail returns shot + linked_refs summary
+[ok] creating link works and appears in linked_refs
+[ok] deleting link uses tombstone semantics and effective view is updated
+== gate_shots_api: passed ==

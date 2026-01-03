@@ -1,0 +1,18 @@
+== [A2] list top-level under apps/web/app ==
+total 21
+drwxr-xr-x 1 lee 197121    0 Dec 31 23:31 ./
+drwxr-xr-x 1 lee 197121    0 Jan  1 21:00 ../
+drwxr-xr-x 1 lee 197121    0 Dec 31 00:26 _components/
+drwxr-xr-x 1 lee 197121    0 Dec 31 00:26 _lib/
+drwxr-xr-x 1 lee 197121    0 Dec 31 17:50 api_proxy/
+drwxr-xr-x 1 lee 197121    0 Dec 31 00:26 assets/
+drwxr-xr-x 1 lee 197121    0 Dec 31 00:26 generate/
+-rw-r--r-- 1 lee 197121 4594 Dec 31 00:26 globals.css
+-rw-r--r-- 1 lee 197121  356 Dec 31 00:26 layout.js
+drwxr-xr-x 1 lee 197121    0 Dec 31 11:00 library/
+-rw-r--r-- 1 lee 197121 1525 Dec 31 00:26 page.js
+drwxr-xr-x 1 lee 197121    0 Dec 31 00:26 projects/
+drwxr-xr-x 1 lee 197121    0 Dec 31 00:26 series/
+drwxr-xr-x 1 lee 197121    0 Dec 31 19:26 shots/
+drwxr-xr-x 1 lee 197121    0 Dec 31 23:31 transfer/
+drwxr-xr-x 1 lee 197121    0 Dec 31 10:42 trash/

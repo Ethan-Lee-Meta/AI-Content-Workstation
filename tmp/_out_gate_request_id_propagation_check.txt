@@ -1,0 +1,2 @@
+== gate_request_id_propagation_check ==
+[ok] header present: X-Request-Id (non-empty)

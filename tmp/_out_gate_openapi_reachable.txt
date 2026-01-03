@@ -1,0 +1,2 @@
+== gate_openapi_reachable ==
+[ok] /openapi.json reachable

@@ -1,0 +1,18 @@
+== nav hits (limited) under apps/web/app/_components ==
+[warn] rg not found; using grep (limited by head)
+apps/web/app/_components/AppShell.js:5:import Sidebar from "./Sidebar";
+apps/web/app/_components/AppShell.js:29:      <Sidebar ctx={ctx} />
+apps/web/app/_components/Sidebar.js:7:  { href: "/library", label: "Library" },
+apps/web/app/_components/Sidebar.js:8:  { href: "/generate", label: "Generate" },
+apps/web/app/_components/Sidebar.js:9:  { href: "/projects", label: "Projects" },
+apps/web/app/_components/Sidebar.js:10:  { href: "/series", label: "Series" },
+apps/web/app/_components/Sidebar.js:11:  { href: "/shots", label: "Shots" },
+apps/web/app/_components/Sidebar.js:12:  { href: "/trash", label: "Trash" },
+apps/web/app/_components/Sidebar.js:15:export default function Sidebar({ ctx }) {
+apps/web/app/_components/Sidebar.js:32:              href={n.href}
+apps/web/app/_components/Sidebar.js:47:          <span>/library</span><b className="mono">overview</b>
+apps/web/app/_components/Sidebar.js:48:          <span>/assets/:id</span><b className="mono">detail</b>
+apps/web/app/_components/Sidebar.js:49:          <span>/generate</span><b className="mono">run</b>
+apps/web/app/_components/Sidebar.js:50:          <span>/projects/*</span><b className="mono">placeholder</b>
+apps/web/app/_components/Sidebar.js:51:          <span>/series/*</span><b className="mono">placeholder</b>
+apps/web/app/_components/Sidebar.js:52:          <span>/shots/*</span><b className="mono">placeholder</b>

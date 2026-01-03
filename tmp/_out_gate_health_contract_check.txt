@@ -1,0 +1,2 @@
+== gate_health_contract_check ==
+[ok] /health keys present: status, version, db, storage, last_error_summary

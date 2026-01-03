@@ -1,0 +1,369 @@
+# HANDOFF — P0 Cumulative (Standalone, Single-File) — Updated through BATCH-8
+
+本文件是**唯一交接产物**（self-contained）。目标：让接手者在**不额外问问题**的情况下，能完成：
+1) 本地启动 API(7000) + Web(2000)；
+2) 跑通 gate_all(full)；
+3) 理解并继续开发（尤其是 Shots 工作台 UI 与 Links SSOT 关系编排）。
+
+---
+
+## 0) Snapshot（交接时必须填写）
+
+> 在交接当下执行并粘贴输出（用于可追溯定位）
+
+- Branch:
+  - `git rev-parse --abbrev-ref HEAD`
+- HEAD:
+  - `git rev-parse HEAD`
+  - `git show -s --format='%ci %s' HEAD`
+- Working tree:
+  - `git status -sb`
+
+> 交接口径：本文件描述“当前 HEAD 应具备的能力与门禁”。如你 checkout 的 HEAD 不同，以你的 HEAD 为准，但仍需满足 locks 与 gates。
+
+---
+
+## 0.1 Hard Locks（不可变更项；如需变更必须走 CR）
+
+### 端口锁
+- Web dev server: `2000`
+- API server: `7000`
+
+### 目录契约
+- ✅允许编辑：`apps/web/**`, `docs/**`, `scripts/**`
+- ❌禁止新增顶层目录：`infra/**`, `services/**`
+- ❌禁止编辑：`vendor/**`, `.github/workflows/**`
+
+### UI 架构锁
+- App Shell：`Sidebar`, `Topbar`, `MainContent`, `InspectorDrawer`
+- 必须存在路由：
+  - `/shots`
+  - `/shots/:shot_id`
+- 不得移除既有 P0 路由；本次及后续只允许补齐/完善 shots 路由内容与交互。
+
+### 交互约束
+- Shots 核心任务（选择 shot → 关联资产 → 保存/确认）交互层级 **<= 3**（证据见 `docs/SHOTS_UI_EVIDENCE.md`）。
+
+### API 展示锁
+- Request id header: `X-Request-Id`
+- Error envelope 必含 keys：`error`, `message`, `request_id`, `details`
+- Pagination 响应形态：
+  - 顶层：`items`, `page`
+  - page：`limit`, `offset`, `total`, `has_more`
+
+### 关系不变量
+- `links` 是关系唯一来源（SSOT）
+- UI 的“关联/取消关联”必须走 Link API；不得在 UI 侧暗存关系或绕过 Links。
+
+---
+
+## 1) Backend：已交付能力（按契约视角）
+
+### 1.1 可观测性与契约基线
+- `GET /health`：
+  - 必含 keys：`status`, `version`, `db`, `storage`, `last_error_summary`
+- `GET /openapi.json`：可达
+- Request tracing：
+  - 成功响应会 echo `X-Request-Id`
+  - 错误响应为统一 error envelope 且包含 `request_id`
+
+### 1.2 Assets（软删除 + 列表/详情）
+- `GET /assets?offset=&limit=&include_deleted=`
+  - 默认：不含 deleted
+  - `include_deleted=true`：包含软删除资产
+  - 默认 limit=50；最大 limit=200
+  - 响应：`{ items: [...], page: {limit, offset, total, has_more} }`
+- `GET /assets/{id}`
+- `DELETE /assets/{id}`：soft delete（幂等）
+- 注意：资产主键字段在 list/items 内可能是 `id`（UI/gates 必须兼容）
+
+### 1.3 Trash（清空回收站）
+- `POST /trash/empty`：清理所有 soft-deleted 资产（并尝试删除存储文件）
+- 清理后：`GET /assets?include_deleted=true` 不应再返回被 purge 的资产
+
+### 1.4 Runs / Reviews（P0/P1 支撑面）
+- Runs：创建/查询基本可用（用于链路追踪）
+- Reviews：override 必须有 `reason`（前后端都约束）
+
+### 1.5 Shots + Links（P1：引用关系编排的核心）
+- `GET /shots?offset=&limit=&project_id?=&series_id?=`
+  - 响应：`{ items, page{limit,offset,total,has_more} }`
+- `GET /shots/{shot_id}`
+  - 至少返回：`shot` + `linked_refs`（linked_refs 必须来自 Links SSOT，且已应用 tombstone）
+- `POST /shots/{shot_id}/links`
+  - body：`{ dst_type, dst_id, rel }`
+  - 成功应返回 `link_id`（供后续 unlink）
+- `DELETE /shots/{shot_id}/links/{link_id}`
+  - 语义：写入 tombstone（append-only），而非物理删除
+
+---
+
+## 2) Frontend：已交付能力（按页面与交互视角）
+
+### 2.1 启动方式（dev）
+- `cd apps/web && npm i`
+- `npm run dev -- --port 2000`
+- 打开：
+  - `http://127.0.0.1:2000/shots`
+
+### 2.2 API Proxy（浏览器同源转发）
+- 前端通过 `/api_proxy/*` 转发到 7000，确保：
+  - 避免 CORS 问题
+  - 统一 `X-Request-Id` 传递/可追溯
+- 相关实现位于：`apps/web/app/api_proxy/**`
+
+### 2.3 Shots 工作台 UI（BATCH-7）
+#### `/shots` 列表页
+- 分页展示 shots（offset/limit）
+- 可选过滤（若后端支持）：project_id / series_id
+- 点击条目进入 `/shots/:shot_id`
+
+#### `/shots/:shot_id` 详情/工作台页
+- 展示 shot 基本信息（用于契约演进时快速对齐）
+- 展示 `linked_refs` 汇总（至少列出关联对象 id + 类型桶）
+- Link 编排面板（核心任务 <=3 层）：
+  - add link：填写 dst_type/dst_id/rel 后提交
+  - remove link：基于 link_id 执行 unlink（若后端可提供）
+- 错误处理：
+  - 失败时 UI 必须可见 error envelope 片段 + request_id（便于查后端日志）
+
+#### 常见陷阱：Next.js duplicate pages
+- 禁止同一路由同时存在 `page.js` 与 `page.tsx`
+- 若出现 duplicate warning：必须删除/迁移其中一个版本，保证每个路由只存在一个 page 文件。
+
+---
+
+## 3) Verification：门禁（Gates）与证据（Evidence）
+
+### 3.1 一键回归（推荐）
+- `bash scripts/gate_all.sh --mode=full`
+- 可选重复跑 N 次（抖动排查）：
+  - `bash scripts/gate_all.sh --mode=full --repeat=3`
+
+
+### 3.3 gate 输出与失败定位（最重要的 runbook）
+- 每个 gate 的完整输出会写入：
+  - `tmp/_out_gate_<label>.txt`
+  - 若 `--repeat=N`：`tmp/_out_gate_<label>__run<i>.txt`
+- 当某 gate 失败：
+  1) 先看终端最后的 `[err] <label> failed ... (see tmp/_out_gate_...)`
+  2) 打开对应 tmp 日志文件定位具体 HTTP/code/envelope
+
+### 3.4 shots_ui 的“确定性”保证（自动 seed + link add/remove）
+`bash scripts/gate_shots_ui.sh` 必须满足：
+- 先验证 openapi 可达
+- 通过 API 取一个 `shot_id`
+  - 若 shots 为空：允许尝试调用 `scripts/gate_shots_api.sh` seed 后重试
+- 通过 Web 验证页面渲染：
+  - `GET http://127.0.0.1:2000/shots` 返回 200
+  - `GET http://127.0.0.1:2000/shots/<shot_id>` 返回 200
+- 确定性 link add/remove：
+  - 先 `GET /assets?offset=0&limit=1`，兼容 items[0].id / items[0].asset_id
+  - 若无资产：自动运行 `scripts/gate_assets_read.sh` seed，再取资产
+  - `POST /shots/<shot_id>/links` 创建 link（要求返回 link_id）
+  - `DELETE /shots/<shot_id>/links/<link_id>` 执行 unlink（tombstone）
+
+> 如 link create/unlink 失败，脚本会打印 headers/body（截断）以便快速定位（例如：契约字段不匹配、后端未返回 link_id、或 error envelope 缺 key）。
+
+---
+
+## 4) 开发续作指南（让新接手者可以直接开干）
+
+### 4.1 增加/调整 Shots UI 的推荐方式
+- 列表页：只加“展示字段 + 过滤条件 + 分页控制”
+- 详情页：优先保证“linked_refs 结构可视化”稳定，再增强交互（例如：选择器 UI）
+- 所有关系变更必须走 Links API；禁止在前端缓存关系作为事实来源
+
+### 4.2 新增一个 API Proxy 路由（同源转发）
+- 位置：`apps/web/app/api_proxy/<...>/route.js`
+- 要求：
+  - 转发到 7000
+  - 透传 `X-Request-Id`
+  - 失败时返回统一 JSON（尽可能透出 error envelope + request_id）
+
+### 4.3 新增一个 gate 并合入 gate_all(full)
+- 在 `scripts/` 下新增 `gate_xxx.sh`
+- 在 `gate_all.sh` 的 full 分支中加：
+  - `run_gate "xxx" "scripts/gate_xxx.sh" "$i" || exit $?`
+- 同时把 label 加入证据采集列表（`docs/EVIDENCE_P0_FULL.md` 会抽取 `[ok]` 行）
+
+---
+
+## 5) 本次（BATCH-7）交付点摘要（给下一窗口/开发者的最小必要信息）
+
+交付内容：
+- Shots UI 路由可用：`/shots` 与 `/shots/:shot_id`
+- 关系可视化：详情页展示 `linked_refs`（来自 Links SSOT）
+- 关系编排：通过 Links API 增加/取消关联（tombstone 语义）
+- `gate_shots_ui`：确定性门禁（自动 seed assets；完成 link add/remove）
+- `gate_all(full)`：已包含 `shots_api` 与 `shots_ui`，并生成 `docs/EVIDENCE_P0_FULL.md`
+
+交接给下一窗口必须携带：
+- 当前 HEAD SHA
+- `docs/EVIDENCE_P0_FULL.md`
+- `docs/SHOTS_UI_EVIDENCE.md`
+- `tmp/_out_gate_shots_api*.txt` 与 `tmp/_out_gate_shots_ui*.txt`（若出现问题用于定位）
+
+---
+
+## BATCH-8 (PHASE-P1) — ProviderAdapter 可执行化（Feature Flag, STEP-190）
+
+- Branch: `{branch}`
+- Head: `{head}`
+- Updated at (UTC): `{ts}`
+
+### BATCH-8.1 交付内容（What shipped）
+- ProviderAdapter 抽象边界（可插拔）：`apps/api/app/modules/runs/providers/*`
+- 最小可运行 Provider：`mock`（写入 storage，并返回稳定 `result_refs` 引用）
+- Feature Flag（默认 OFF）：`PROVIDER_ENABLED=0|1`
+- Gate（本批次）：`scripts/gate_provider_adapter.sh`
+- gate_all(full) 已纳入：`scripts/gate_all.sh` 的 full 模式在 `api_smoke` 后执行 `provider_adapter`
+- Append-only 语义兼容：**不 UPDATE runs**；通过 `run_events` 追加事件记录状态迁移与结果引用，并在 `GET /runs/{{id}}` 时覆盖返回（最新事件优先）
+
+### BATCH-8.2 运行时开关（Feature Flag / Headers）
+- ENV（默认 OFF）：
+  - `PROVIDER_ENABLED=0`：关闭 provider（保持原 stub/queued 行为）
+  - `PROVIDER_ENABLED=1`：开启 provider（执行 provider + 事件写入）
+- Gate/调试用请求头覆盖（无需重启服务）：
+  - `X-Provider-Enabled: 1|0`：强制 ON/OFF（优先级高于 ENV）
+  - `X-Provider-Force-Fail: 1`：强制 provider 失败路径（用于验证错误信封与 failed 状态）
+
+### BATCH-8.3 runs 执行语义（契约不漂移前提下的行为摘要）
+- API 路径不变：
+  - `POST /runs`
+  - `GET /runs/{{run_id}}`
+- `POST /runs`（provider OFF）：
+  - 维持原行为：创建 run，返回 `RunCreateOut`（`status` 通常为 `queued`）
+- `POST /runs`（provider ON）：
+  - 创建 run 后追加事件：`running -> succeeded|failed`
+  - 返回仍为 `RunCreateOut`（不新增字段，不改 DTO 形状）
+- `GET /runs/{{run_id}}`：
+  - 返回 `RunGetOut`；其中 `status` 与 `result_refs` 若存在 run_events，则以**最新事件覆盖**（append-only）
+
+### BATCH-8.4 result_refs 约定（不改字段名，仅填充内容）
+- `RunGetOut.result_refs` 仍为 dict（保持既有 DTO 形状）
+- provider 成功时（示例字段）：
+  - `asset_ids`: list（兼容保留，P1 可能为空）
+  - `provider`: string（如 `mock`）
+  - `refs`: list[str]（至少 1 个，例如 `storage://runs/<run_id>/result.json`）
+  - 可选：`details`（provider 额外信息）
+- provider 失败时（示例字段）：
+  - `asset_ids`: list
+  - `provider`: string
+  - `error`: string（失败原因）
+
+### BATCH-8.5 错误与可观测性（Error envelope / RequestId）
+- provider 失败路径必须返回错误信封（keys）：`error, message, request_id, details`
+- details 内包含 `run_id`（便于随后 `GET /runs/{{id}}` 验证 `failed` 已落库）
+- gate 输出中的 request_id 示例可从 `tmp/_out_gate_provider_adapter.txt` 中提取
+
+### BATCH-8.6 验证（Verification）
+- 本批 gate：
+  - `bash scripts/gate_provider_adapter.sh`
+- 回归 gate：
+  - `bash scripts/gate_all.sh --mode=full`
+
+### BATCH-8.7 回滚（Rollback）
+- 首选：关闭开关（不破坏 P0）
+  - `PROVIDER_ENABLED=0`（或 gate 使用 `X-Provider-Enabled: 0`）
+- 必要时：`git revert <merge_commit_sha>`（确保 `/runs` 契约仍可用）
+
+### BATCH-8.8 交接输出（handoff_outputs）
+- Head/merge commit SHA：`{head}`
+- Feature Flag/默认值：
+  - `PROVIDER_ENABLED` 默认 OFF（未设置时视为关闭）
+  - Header overrides：`X-Provider-Enabled`, `X-Provider-Force-Fail`
+- gate_provider_adapter 关键证据：
+  - `tmp/_out_gate_provider_adapter.txt`（含成功/失败路径输出与 request_id）
+- 状态迁移与结果引用摘要：
+  - 事件序列：`queued (runs)` -> `running (run_events)` -> `succeeded|failed (run_events)`
+  - `RunGetOut.result_refs`：dict（成功至少含 `refs`）
+- 下一批次 entry_check（建议）：
+  - `gate_all --mode=full` 持续全绿
+  - `gate_provider_adapter` 持续全绿
+  - 若进入后续 provider 强化/导出导入（BATCH-9/STEP-230）：保持 `/runs` DTO/路径不漂移、append-only 不变量不破坏
+  
+## 6) 快速上手（15 分钟 checklist）
+
+1) 启动 API（7000），确认：
+   - `curl -sS http://127.0.0.1:7000/openapi.json | head`
+2) 启动 Web（2000）：
+   - `cd apps/web && npm run dev -- --port 2000`
+3) 跑 full 回归：
+   - `bash scripts/gate_all.sh --mode=full`
+4) 浏览器验证：
+   - 打开 `/shots`，点击任意 shot 进入详情
+   - 在详情页做一次 link add/remove（如 UI 有入口）
+5) 若失败：
+   - 直接打开 `tmp/_out_gate_<label>.txt` 定位
+
+---
+
+
+---
+
+## BATCH-9 — PHASE-P1 — AC-006 Export/Import Directory Package (API)
+
+### 0) Scope (Delivered)
+- Additive P1 endpoints for **export directory package** + **read-only manifest** + **import migration**
+- Export bundle includes: **metadata**, **Links (relationship SSOT)**, and **evidence-chain tables** (PromptPacks/Runs/Reviews; plus optional hierarchy tables if present)
+- Import is **append-only** (does not overwrite existing evidence-chain objects); generates **new IDs** by default
+
+### 1) Endpoints (Additive Contract)
+- `POST   /exports`
+- `GET    /exports/{export_id}`
+- `GET    /exports/{export_id}/manifest`
+- `POST   /imports`
+- `GET    /imports/{import_id}`
+
+### 2) DTO Fields (Names Only)
+Exports:
+- `ExportCreateIn`: `asset_ids`, `include_deleted`, `include_binaries`, `include_proxies`, `note`
+- `ExportGetOut`: `export_id`, `status`, `created_at`, `package_path`, `manifest_path`, `bundle_path`, `counts`, `warnings`
+- `ExportManifestOut`:
+  - top: `manifest_version`, `export_id`, `created_at`, `selection`, `tables`, `assets_preview`, `blobs`, `warnings`
+  - `tables`: `resolved_table_names`, `row_counts`
+
+Imports:
+- `ImportCreateIn`: `export_id`, `package_path`, `create_new_ids`, `note`
+- `ImportGetOut`: `import_id`, `status`, `created_at`, `source`, `counts`, `id_map_size`, `warnings`
+
+### 3) On-Disk Artifacts (Local FS)
+- Export root (default): `data/exports/{export_id}/`
+  - `bundle.json` (table dumps)
+  - `manifest.json` (read-only preview input for UI; no import required)
+  - `export.json` (export record)
+  - `blobs/` (best-effort binary copies when enabled)
+- Import root (default): `data/imports/{import_id}/import.json`
+
+Config overrides (optional env):
+- `APP_DB_PATH`, `APP_STORAGE_ROOT`, `APP_EXPORTS_ROOT`, `APP_IMPORTS_ROOT`
+Rollback flag:
+- `EXPORT_IMPORT_ENABLED=0` disables all export/import endpoints (preferred rollback)
+
+### 4) Verification
+Run:
+- `bash scripts/gate_api_smoke.sh`
+- `bash scripts/gate_export_import.sh`
+- (optional regression) `bash scripts/gate_all.sh --mode=full`
+
+Expected gate signals:
+- `[ok] openapi has exports/imports paths`
+- `[ok] manifest readable (no import)`
+- `[ok] import completed`
+- `[ok] relationships (links) preserved`
+
+Evidence (sample from latest run):
+- export create `request_id=6F36EB86EEFB411583636CB0CF059CD4`
+- export_id `5CF2EB9417C24AC2A7BE3D2DAE3721F9`
+- manifest `request_id=C97BDBE9EE7B43CDB2BD746AAECCFA54`
+- import create `request_id=2279DE9DABB34083A8A5C21FE2B9EC8C`
+- import_id `4683913F6AE24720976572476F5CD224`
+- links preserved `imported=44`
+
+### 5) BATCH-10 Entry Check
+- `/openapi.json` contains `/exports` and `/imports`
+- `GET /exports/{export_id}/manifest` works **without importing**
+- `gate_export_import` passes (rc=0)
+
+(Generated at 2025-12-31T15:06:58Z UTC)

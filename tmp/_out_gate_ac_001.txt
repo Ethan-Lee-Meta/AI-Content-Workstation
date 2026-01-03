@@ -1,0 +1,66 @@
+== gate_ac_001: start ==
+== [info] check api reachable ==
+[ok] api reachable: /openapi.json
+== [info] validate /assets response shape (items + page) ==
+[ok] /assets returns items[] + page{limit,offset,total,has_more}
+== [info] web routes accessible (includes /library & /assets/:id) ==
+== gate_web_routes: start ==
+== [info] next build ==
+
+> apps-web@0.1.0 build
+> next build
+
+▲ Next.js 16.1.0 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 3.5s
+  Running TypeScript ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/6) ...
+  Generating static pages using 19 workers (1/6) 
+  Generating static pages using 19 workers (2/6) 
+  Generating static pages using 19 workers (4/6) 
+✓ Generating static pages using 19 workers (6/6) in 825.9ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api_proxy/[...path]
+├ ƒ /api_proxy/shots/[shot_id]/links
+├ ƒ /api_proxy/shots/[shot_id]/links/[link_id]
+├ ƒ /assets/[asset_id]
+├ ƒ /generate
+├ ƒ /library
+├ ○ /projects
+├ ƒ /projects/[project_id]
+├ ○ /series
+├ ƒ /series/[series_id]
+├ ƒ /shots
+├ ƒ /shots/[shot_id]
+├ ƒ /transfer
+└ ƒ /trash
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+== [info] starting next (2000) ==
+== [info] wait for server ==
+[ok] server ready (http://127.0.0.1:2000)
+== [info] probing required routes ==
+[ok] route ok: /
+[ok] route ok: /library
+[ok] route ok: /assets/test-asset
+[ok] route ok: /generate
+[ok] route ok: /projects
+[ok] route ok: /projects/test-project
+[ok] route ok: /series
+[ok] route ok: /series/test-series
+[ok] route ok: /shots
+[ok] route ok: /shots/test-shot
+[ok] routes accessible: /, /library, /assets/:id, /generate (+ placeholders)
+== gate_web_routes: passed ==
+== [info] verify required page sections markers in source (stable gate) ==
+[ok] /library source contains required sections markers (FiltersBar/AssetGrid/BulkActionBar)
+== gate_ac_001: passed ==
