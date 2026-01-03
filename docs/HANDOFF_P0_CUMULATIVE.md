@@ -552,3 +552,14 @@
   - `EXPORT_IMPORT_UI_ENABLED=0`
 - Or:
   - `git revert <merge_commit_sha>`
+
+
+### v1.1 Batch-4（UI 可操作闭环：Settings ProviderProfiles + Characters RefSets/Refs）
+交付能力：
+- /settings：ProviderProfiles 管理闭环（列表分页、创建/编辑、设默认、删除）
+  - secrets write-only：不回显明文；通过 secrets_configured / secrets_configured_json 展示 configured 状态
+  - 兼容 Windows CRLF：gate_settings_ui 已对 provider_type/secret_key 做 strip，避免 key 尾随 \\r 导致 configured 误判
+- /characters & /characters/:id：角色管理闭环（创建角色、ref_set draft/confirmed 版本、添加 refs≥8、设 active_ref_set）
+新增/强化门禁：
+- scripts/gate_settings_ui.sh
+- scripts/gate_characters_ui.sh

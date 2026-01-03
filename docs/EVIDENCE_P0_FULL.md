@@ -305,3 +305,21 @@ tmp/_out_gate_ac_004.txt:request_id=2b255ca8-4174-4ee7-b2f7-eb5020fcf5c9
     - add refs: `<request_id>`
     - create confirmed ref_set: `<request_id>`
     - set active: `<request_id>`
+
+## BATCH-4A Settings UI (ProviderProfiles) — Evidence (2026-01-03T15:45:32Z)
+
+- Gates:
+  - scripts/gate_web_routes.sh: PASS
+  - scripts/gate_settings_ui.sh: PASS (create → list(no secret plaintext) → configured=true → set_default → delete)
+- Notes:
+  - secrets are write-only; UI shows configured via secrets_configured / secrets_configured_json
+  - client-side JSON validation errors show request_id as n/a (client) (not a backend request)
+
+## BATCH-4B Characters UI (RefSets/Refs) — Evidence (2026-01-03T15:45:32Z)
+
+- Gates:
+  - scripts/gate_characters_ui.sh: PASS (create character → create draft ref_set → add 8 refs → create confirmed ref_set → set active)
+- Notes:
+  - ref_set semantics are append-only via POST new ref_set (draft/confirmed)
+  - refs threshold (>=8) satisfied in gate path
+

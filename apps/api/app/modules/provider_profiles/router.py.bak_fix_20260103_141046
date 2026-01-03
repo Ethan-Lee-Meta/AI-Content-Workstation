@@ -70,7 +70,6 @@ def create_profile(body: ProviderProfileCreateIn, request: Request) -> ProviderP
         name=body.name,
         provider_type=body.provider_type,
         config=body.config or {},
-        secrets_json=body.secrets_json or {},
         secrets_redaction_policy=body.secrets_redaction_policy or {},
         set_global_default=bool(body.set_global_default),
     )
@@ -91,7 +90,6 @@ def patch_profile(profile_id: str, body: ProviderProfilePatchIn) -> ProviderProf
         profile_id,
         name=body.name,
         config=body.config,
-        secrets_json=body.secrets_json,
         secrets_redaction_policy=body.secrets_redaction_policy,
         set_global_default=body.set_global_default,
     )

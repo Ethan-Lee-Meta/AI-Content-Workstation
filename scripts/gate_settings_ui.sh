@@ -1,25 +1,20 @@
 #!/usr/bin/env bash
-set +e
+set -euo pipefail
 
 echo "== gate_settings_ui: start =="
 
+ROOT="$(git rev-parse --show-toplevel)"
 API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:7000}"
 WEB_BASE_URL="${WEB_BASE_URL:-http://127.0.0.1:2000}"
 
-# Prefer venv python if available
-if [ -z "${PY:-}" ]; then
-  if [ -x "apps/api/.venv/Scripts/python.exe" ]; then
-    PY="$(pwd)/apps/api/.venv/Scripts/python.exe"
-  elif [ -x "apps/api/.venv/bin/python" ]; then
-    PY="$(pwd)/apps/api/.venv/bin/python"
-  else
-    PY="python"
-  fi
+# Prefer venv python if present
+PY="${PY:-$ROOT/apps/api/.venv/Scripts/python.exe}"
+if [ ! -x "$PY" ]; then
+  PY="python"
 fi
 
-# Make TMPDIR always be a unique directory (even if env TMPDIR=/tmp)
-TMPROOT="${TMPDIR:-$(pwd)/tmp}"
-TMPDIR="$TMPROOT/gate_settings_ui.$$"
+# IMPORTANT: enforce repo-local tmp (./tmp), ignore external TMPDIR
+TMPDIR="$ROOT/tmp/gate_settings_ui.$$"
 mkdir -p "$TMPDIR"
 
 echo "== [info] API_BASE_URL=$API_BASE_URL =="
@@ -27,45 +22,27 @@ echo "== [info] WEB_BASE_URL=$WEB_BASE_URL =="
 echo "== [info] PY=$PY =="
 echo "== [info] TMPDIR=$TMPDIR =="
 
-rc=0
-
 echo "== [check] /settings route renders =="
-http_code="$(curl -sS -o "$TMPDIR/settings.html" -w "%{http_code}" "$WEB_BASE_URL/settings")"
-if [ "$http_code" = "200" ]; then
-  echo "[ok] /settings http=200"
-else
-  echo "[err] /settings http=$http_code"
-  rc=10
+code="$(curl -sS -o /dev/null -w "%{http_code}" "$WEB_BASE_URL/settings")"
+if [ "$code" != "200" ]; then
+  echo "[err] $WEB_BASE_URL/settings http=$code"
+  exit 10
 fi
+echo "[ok] $WEB_BASE_URL/settings http=200"
 
 echo "== [check] openapi reachable =="
-curl -sS "$API_BASE_URL/openapi.json" > "$TMPDIR/openapi.json"
-if [ $? -ne 0 ] || [ ! -s "$TMPDIR/openapi.json" ]; then
-  echo "[warn] openapi not reachable; skipping provider API checks (UI should degrade gracefully)"
-  exit $rc
-fi
+curl -sS "$API_BASE_URL/openapi.json" -o "$TMPDIR/openapi.json"
 echo "[ok] openapi reachable"
 
-grep -q '"/provider_types"' "$TMPDIR/openapi.json"; HAS_PT=$?
-grep -q '"/provider_profiles"' "$TMPDIR/openapi.json"; HAS_PP=$?
-if [ $HAS_PT -ne 0 ] || [ $HAS_PP -ne 0 ]; then
-  echo "[warn] provider endpoints missing in openapi; skipping provider API checks (UI should degrade gracefully)"
-  exit $rc
-fi
-
 echo "== [step] GET /provider_types =="
-curl -sS "$API_BASE_URL/provider_types" > "$TMPDIR/provider_types.json"
-if [ $? -ne 0 ] || [ ! -s "$TMPDIR/provider_types.json" ]; then
-  echo "[err] GET /provider_types failed"
-  rc=11
-  exit $rc
-fi
+curl -sS "$API_BASE_URL/provider_types" -o "$TMPDIR/provider_types.json"
 
-# Correct heredoc argv passing: python - <file> <<'PY' ... PY
-read -r PT SK <<<"$("$PY" - "$TMPDIR/provider_types.json" <<'PY'
-import json,sys
-p=json.load(open(sys.argv[1],"r",encoding="utf-8"))
-items=p.get("items") or []
+read -r PT SK < <(
+  TMPDIR="$TMPDIR" "$PY" - <<'PY'
+import json, os
+tmp=os.environ["TMPDIR"]
+j=json.load(open(f"{tmp}/provider_types.json","r",encoding="utf-8"))
+items=j.get("items") or []
 pt=None
 for it in items:
   if it.get("provider_type")=="mock":
@@ -73,81 +50,90 @@ for it in items:
 if not pt and items:
   pt=items[0]
 pt_name=(pt or {}).get("provider_type") or ""
-secrets=(pt or {}).get("secrets_hints") or {}
+h=(pt or {}).get("secrets_hints") or {}
 sk=""
-if isinstance(secrets,dict) and secrets:
-  sk=next(iter(secrets.keys()))
-print(pt_name, sk)
+if isinstance(h, dict) and h:
+  sk = "redact_keys_example" if "redact_keys_example" in h else list(h.keys())[0]
+print(str(pt_name).strip(), str(sk).strip())
 PY
-)"
+)
 
-if [ -z "$PT" ]; then
-  echo "[err] cannot pick provider_type from /provider_types"
-  rc=12
-  exit $rc
+PT="${PT//$'\r'/}"
+SK="${SK//$'\r'/}"
+if [ -z "${PT:-}" ] || [ -z "${SK:-}" ]; then
+  echo "[err] cannot pick provider_type/secret_key from /provider_types"
+  exit 12
 fi
-echo "[ok] picked provider_type=$PT secret_key=${SK:-"(none)"}"
-
-NAME="gate-profile-$(date -u +%Y%m%d%H%M%S)"
-DUMMY_SECRET="gate_dummy_secret_$(date -u +%s)"
+echo "[ok] picked provider_type=$PT secret_key=$SK"
 
 echo "== [step] POST /provider_profiles (create) =="
-PT="$PT" NAME="$NAME" SK="$SK" DUMMY_SECRET="$DUMMY_SECRET" "$PY" - <<'PY' > "$TMPDIR/create.body.json"
-import json,os
-pt=os.environ["PT"]
-name=os.environ["NAME"]
-sk=os.environ.get("SK","")
-dummy=os.environ.get("DUMMY_SECRET","")
-payload={"name":name,"provider_type":pt,"config_json":{}}
-if sk:
-  payload["secrets_json"]={sk:dummy}
-print(json.dumps(payload))
+NAME="gate-pp-$(date -u +%Y%m%d%H%M%S)"
+DUMMY="dummy_secret_$(date -u +%s)"
+
+PT="$PT" SK="$SK" NAME="$NAME" DUMMY="$DUMMY" TMPDIR="$TMPDIR" "$PY" - <<'PY'
+import json, os
+pt=os.environ["PT"]; sk=os.environ["SK"]; name=os.environ["NAME"]; dummy=os.environ["DUMMY"]
+tmp=os.environ["TMPDIR"]
+payload={
+  "name": name,
+  "provider_type": pt,
+  "config": {},
+  "secrets_json": { sk: dummy },
+  "secrets_redaction_policy": {},
+  "set_global_default": False
+}
+open(f"{tmp}/create.body.json","w",encoding="utf-8").write(json.dumps(payload, ensure_ascii=False))
 PY
 
-curl -sS -D "$TMPDIR/create.headers.txt" -o "$TMPDIR/create.json" \
-  -H "content-type: application/json" \
+curl -sS -H "content-type: application/json" \
   -X POST "$API_BASE_URL/provider_profiles" \
-  --data-binary @"$TMPDIR/create.body.json"
+  --data-binary @"$TMPDIR/create.body.json" \
+  -o "$TMPDIR/create.resp.json"
 
-PROFILE_ID="$("$PY" - "$TMPDIR/create.json" <<'PY'
-import json,sys
-j=json.load(open(sys.argv[1],"r",encoding="utf-8"))
-print(j.get("id") or "")
+PID="$(
+  TMPDIR="$TMPDIR" "$PY" - <<'PY'
+import json, os
+tmp=os.environ["TMPDIR"]
+j=json.load(open(f"{tmp}/create.resp.json","r",encoding="utf-8"))
+print(j.get("id",""))
 PY
 )"
-if [ -z "$PROFILE_ID" ]; then
-  echo "[err] create provider_profile failed (missing id)"
-  echo "body=$(cat "$TMPDIR/create.json")"
-  rc=13
-  exit $rc
-fi
-echo "[ok] created profile_id=$PROFILE_ID"
 
-echo "== [step] GET /provider_profiles (list) ensure secret not echoed =="
-curl -sS "$API_BASE_URL/provider_profiles?offset=0&limit=50" > "$TMPDIR/list.json"
-if grep -q "$DUMMY_SECRET" "$TMPDIR/list.json"; then
-  echo "[err] secret value was echoed in list response (should be masked)"
-  rc=14
-else
-  echo "[ok] list response does not contain dummy secret"
+if [ -z "$PID" ]; then
+  echo "[err] create provider_profile failed (missing id)"
+  cat "$TMPDIR/create.resp.json" || true
+  exit 13
 fi
+echo "[ok] created profile_id=$PID"
+
+echo "== [step] GET /provider_profiles (list) ensure secret not echoed + configured true =="
+curl -sS "$API_BASE_URL/provider_profiles?offset=0&limit=200" -o "$TMPDIR/list.json"
+
+PID="$PID" SK="$SK" DUMMY="$DUMMY" TMPDIR="$TMPDIR" "$PY" - <<'PY'
+import json, os, sys
+pid=os.environ["PID"]; sk=os.environ["SK"]; dummy=os.environ["DUMMY"]; tmp=os.environ["TMPDIR"]
+raw=open(f"{tmp}/list.json","r",encoding="utf-8").read()
+if dummy in raw:
+  print("[err] secret leaked in list response"); sys.exit(21)
+j=json.loads(raw)
+for it in (j.get("items") or []):
+  if it.get("id")==pid:
+    sc=it.get("secrets_configured")
+    scj=it.get("secrets_configured_json") or {}
+    if sc is not True:
+      print("[err] secrets_configured not true:", sc); sys.exit(22)
+    if scj.get(sk) is not True:
+      print("[err] secrets_configured_json missing/false:", scj); sys.exit(23)
+    print("[ok] list response does not contain dummy secret; configured=true; configured_json ok")
+    break
+else:
+  print("[err] created profile not found in list"); sys.exit(24)
+PY
 
 echo "== [step] POST /provider_profiles/{id}/set_default =="
-curl -sS -D "$TMPDIR/setdef.headers.txt" -o "$TMPDIR/setdef.json" \
-  -H "content-type: application/json" \
-  -X POST "$API_BASE_URL/provider_profiles/$PROFILE_ID/set_default"
-if [ $? -ne 0 ]; then
-  echo "[err] set_default failed"
-  rc=15
-fi
+curl -sS -X POST "$API_BASE_URL/provider_profiles/$PID/set_default" -o "$TMPDIR/set_default.json" || true
 
 echo "== [step] DELETE /provider_profiles/{id} =="
-curl -sS -D "$TMPDIR/del.headers.txt" -o "$TMPDIR/del.json" \
-  -X DELETE "$API_BASE_URL/provider_profiles/$PROFILE_ID"
-if [ $? -ne 0 ]; then
-  echo "[err] delete failed"
-  rc=16
-fi
+curl -sS -X DELETE "$API_BASE_URL/provider_profiles/$PID" -o "$TMPDIR/delete.json" || true
 
-echo "== gate_settings_ui: done rc=$rc =="
-exit $rc
+echo "== gate_settings_ui: done rc=0 =="

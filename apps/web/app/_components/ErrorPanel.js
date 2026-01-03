@@ -24,7 +24,7 @@ export default function ErrorPanel({ title = "Error", error, onRetry }) {
           <div className="mt-1">{normalized.msg}</div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-800">
             {normalized.status ? <span>status: {normalized.status}</span> : null}
-            {normalized.rid ? <span>request_id: {normalized.rid}</span> : <span>request_id: (missing)</span>}
+            {normalized.rid ? <span>request_id: {normalized.rid}</span> : <span>request_id: n/a (client)</span>}
           </div>
         </div>
 

@@ -185,7 +185,7 @@ def _row_to_profile(conn: sqlite3.Connection, r: sqlite3.Row, *, redact: bool) -
     )
 
     cfg_map = _compute_secrets_configured(provider_type, config_raw)
-    cfg_any = any(bool(v) for v in (cfg_map or {}).values())
+    cfg_all = bool(cfg_map) and all(bool(v) for v in cfg_map.values())
 
     view_config = _redact_config(config_raw, policy) if redact else config_raw
 
@@ -195,7 +195,7 @@ def _row_to_profile(conn: sqlite3.Connection, r: sqlite3.Row, *, redact: bool) -
         "provider_type": provider_type,
         "config": view_config if isinstance(view_config, dict) else {},
         "secrets_redaction_policy": policy if isinstance(policy, dict) else {},
-        "secrets_configured": bool(cfg_any),
+        "secrets_configured": bool(cfg_all),
         "secrets_configured_json": cfg_map if isinstance(cfg_map, dict) else {},
         "is_global_default": bool(int(r["is_global_default"])) if "is_global_default" in cols else False,
         "created_at": str(r["created_at"]) if "created_at" in cols and r["created_at"] is not None else None,

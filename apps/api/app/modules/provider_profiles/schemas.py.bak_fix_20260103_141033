@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-
 from pydantic import BaseModel, Field
 
 from app.modules.assets.schemas import PageOut
@@ -26,13 +25,11 @@ class ProviderProfileDTO(BaseModel):
     # API 永不明文回显 secret；此处为脱敏后的 config
     config: Dict[str, Any] = Field(default_factory=dict)
 
-    # 脱敏策略（可扩展）
     secrets_redaction_policy: Dict[str, Any] = Field(default_factory=dict)
 
-    # 仅表示“是否已配置”，不回显明文
-    secrets_configured: bool = False
-    secrets_configured_json: Dict[str, bool] = Field(default_factory=dict)
 
+  secrets_configured: bool = False
+  secrets_configured_json: Dict[str, bool] = Field(default_factory=dict)
     is_global_default: bool = False
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -50,9 +47,9 @@ class ProviderProfileCreateIn(BaseModel):
     # 允许前端提交任意 JSON（后端存储为 json 字符串）
     config: Dict[str, Any] = Field(default_factory=dict)
 
-    # write-only: UI 提交 secrets；API 不回显明文
-    secrets_json: Dict[str, str] = Field(default_factory=dict)
 
+  # write-only: UI 提交 secrets；API 不回显明文
+  secrets_json: Dict[str, str] = Field(default_factory=dict)
     # 约定：{"redact_keys":["api_key","token",...]}（可扩展）
     secrets_redaction_policy: Dict[str, Any] = Field(default_factory=dict)
 
@@ -63,10 +60,6 @@ class ProviderProfileCreateIn(BaseModel):
 class ProviderProfilePatchIn(BaseModel):
     name: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
-
-    # write-only: 不提供则不修改；提供 key 则覆盖
-    secrets_json: Optional[Dict[str, str]] = None
-
     secrets_redaction_policy: Optional[Dict[str, Any]] = None
 
     # 可选：设/取消全局默认（唯一）

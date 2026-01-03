@@ -91,7 +91,7 @@ export default function ProviderProfileFormModal({
 
     const parsed = safeJsonParse(configText);
     if (!parsed.ok) {
-      setErr({ message: `config invalid: ${parsed.error}`, request_id: null, details: { field: "config" } });
+      setErr({ message: `config invalid: ${parsed.error}`, request_id: null, details: { field: "config_json" } });
       return;
     }
 
@@ -253,7 +253,7 @@ export default function ProviderProfileFormModal({
             </div>
           ) : (
             <div className="mt-1 text-xs text-gray-600">
-              No api_key hints provided by /provider_types. (API Key can still be set if backend accepts secrets_json in payload.)
+              No api_key hints provided by /provider_types. (Secrets can still be set if backend accepts secrets_json in payload.)
             </div>
           )}
         </div>
