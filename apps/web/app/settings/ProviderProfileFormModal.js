@@ -1,0 +1,263 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Modal from "../_components/Modal";
+import Badge from "../_components/Badge";
+import ErrorPanel from "../_components/ErrorPanel";
+
+function safeJsonParse(text) {
+  if (!text || !String(text).trim()) return { ok: true, value: {} };
+  try {
+    const v = JSON.parse(text);
+    if (v && typeof v === "object") return { ok: true, value: v };
+    return { ok: false, error: "JSON must be an object" };
+  } catch (e) {
+    return { ok: false, error: e?.message || "Invalid JSON" };
+  }
+}
+
+export default function ProviderProfileFormModal({
+  open,
+  mode, // "create" | "edit"
+  providerTypes,
+  initialProfile,
+  onClose,
+  onSubmit, // async (payload) => void
+}) {
+  const [name, setName] = useState("");
+  const [providerType, setProviderType] = useState("");
+  const [configText, setConfigText] = useState("{}");
+  const [secretValues, setSecretValues] = useState({}); // key -> string (only send if non-empty)
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const pt = useMemo(() => {
+    return (providerTypes || []).find((x) => x.provider_type === providerType) || null;
+  }, [providerTypes, providerType]);
+
+  const knownProviderType = !!pt;
+
+  const configHints = useMemo(() => {
+    // Prefer config_schema.fields; fallback to config_hints keys.
+    const schemaFields = pt?.config_schema?.fields;
+    if (Array.isArray(schemaFields)) return schemaFields;
+    const hintsObj = pt?.config_hints;
+    if (hintsObj && typeof hintsObj === "object") {
+      return Object.keys(hintsObj).map((k) => ({ key: k, label: k, type: "string", help: String(hintsObj[k]) }));
+    }
+    return [];
+  }, [pt]);
+
+  const secretHints = useMemo(() => {
+    const hintsObj = pt?.secrets_hints;
+    if (hintsObj && typeof hintsObj === "object") {
+      return Object.keys(hintsObj).map((k) => ({ key: k, label: k, help: String(hintsObj[k]) }));
+    }
+    return [];
+  }, [pt]);
+
+  const configured = !!(initialProfile && (initialProfile.secrets_configured || initialProfile.secretsConfigured));
+
+  useEffect(() => {
+    if (!open) return;
+    setErr(null);
+
+    if (mode === "edit" && initialProfile) {
+      setName(initialProfile.name || "");
+      setProviderType(initialProfile.provider_type || initialProfile.providerType || "");
+      const cfg = initialProfile.config_json || initialProfile.config || {};
+      setConfigText(JSON.stringify(cfg || {}, null, 2));
+      setSecretValues({});
+    } else {
+      setName("");
+      const first = (providerTypes || [])[0]?.provider_type || "";
+      setProviderType(first);
+      setConfigText("{}");
+      setSecretValues({});
+    }
+  }, [open, mode, initialProfile, providerTypes]);
+
+  async function handleSubmit() {
+    setErr(null);
+
+    if (!name.trim()) {
+      setErr({ message: "name is required", request_id: null, details: { field: "name" } });
+      return;
+    }
+    if (!providerType) {
+      setErr({ message: "provider_type is required", request_id: null, details: { field: "provider_type" } });
+      return;
+    }
+
+    const parsed = safeJsonParse(configText);
+    if (!parsed.ok) {
+      setErr({ message: `config_json invalid: ${parsed.error}`, request_id: null, details: { field: "config_json" } });
+      return;
+    }
+
+    // Secret semantics (A4):
+    // - inputs default empty
+    // - empty => do NOT send => backend should not modify
+    // - non-empty => send => overwrite
+    const secretsPatch = {};
+    for (const [k, v] of Object.entries(secretValues || {})) {
+      if (typeof v === "string" && v.trim().length > 0) secretsPatch[k] = v;
+    }
+
+    const payload = {
+      name: name.trim(),
+      provider_type: providerType,
+      config_json: parsed.value,
+      // only include secrets_json if user typed something
+      ...(Object.keys(secretsPatch).length > 0 ? { secrets_json: secretsPatch } : {}),
+    };
+
+    setSubmitting(true);
+    try {
+      await onSubmit(payload);
+      onClose();
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const footer = (
+    <div className="flex items-center justify-between">
+      <div className="text-xs text-gray-600">
+        Secrets: empty = no change, typed = overwrite.
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="rounded-md border px-3 py-1.5 text-xs hover:bg-gray-50 disabled:opacity-50"
+          onClick={onClose}
+          disabled={submitting}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="rounded-md bg-black px-3 py-1.5 text-xs text-white hover:bg-black/90 disabled:opacity-50"
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <Modal
+      open={open}
+      title={mode === "edit" ? "Edit Provider Profile" : "New Provider Profile"}
+      onClose={submitting ? () => {} : onClose}
+      footer={footer}
+    >
+      {err ? <ErrorPanel title="Request failed" error={err} onRetry={() => setErr(null)} /> : null}
+
+      <div className="mt-3 grid gap-3">
+        <div>
+          <label className="text-xs font-medium text-gray-700">Name</label>
+          <input
+            className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. OpenAI Default"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-gray-700">Provider Type</label>
+            {mode === "edit" && !knownProviderType ? (
+              <Badge tone="amber">compat mode</Badge>
+            ) : null}
+          </div>
+
+          <select
+            className="mt-1 w-full rounded-md border px-3 py-2 text-sm disabled:bg-gray-50"
+            value={providerType}
+            onChange={(e) => setProviderType(e.target.value)}
+            disabled={mode === "edit" && !knownProviderType}
+          >
+            {(providerTypes || []).map((x) => (
+              <option key={x.provider_type} value={x.provider_type}>
+                {x.label ? `${x.label} (${x.provider_type})` : x.provider_type}
+              </option>
+            ))}
+            {mode === "edit" && !knownProviderType ? (
+              <option value={providerType}>{providerType}</option>
+            ) : null}
+          </select>
+
+          {!knownProviderType && mode === "edit" ? (
+            <div className="mt-1 text-xs text-amber-800">
+              This provider_type is not present in /provider_types. You can rename and update config_json; provider_type is locked.
+            </div>
+          ) : null}
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-700">Config (config_json)</label>
+          {configHints.length > 0 ? (
+            <div className="mt-1 rounded-md border bg-gray-50 p-2 text-xs text-gray-700">
+              <div className="font-medium">Hints</div>
+              <ul className="ml-4 list-disc">
+                {configHints.slice(0, 8).map((f) => (
+                  <li key={f.key}>
+                    <span className="font-mono">{f.key}</span>
+                    {f.help ? <span className="text-gray-600"> — {f.help}</span> : null}
+                  </li>
+                ))}
+              </ul>
+              {configHints.length > 8 ? <div className="mt-1 text-gray-500">(+{configHints.length - 8} more)</div> : null}
+            </div>
+          ) : null}
+          <textarea
+            className="mt-1 h-40 w-full rounded-md border px-3 py-2 font-mono text-xs"
+            value={configText}
+            onChange={(e) => setConfigText(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-gray-700">Secrets</label>
+            {mode === "edit" ? (
+              configured ? <Badge tone="green">configured</Badge> : <Badge tone="amber">not configured</Badge>
+            ) : null}
+          </div>
+
+          {secretHints.length > 0 ? (
+            <div className="mt-2 grid gap-2">
+              {secretHints.map((s) => (
+                <div key={s.key}>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-gray-700">
+                      <span className="font-mono">{s.key}</span>
+                      {s.help ? <span className="text-gray-500"> — {s.help}</span> : null}
+                    </div>
+                  </div>
+                  <input
+                    className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                    type="password"
+                    value={secretValues[s.key] || ""}
+                    onChange={(e) => setSecretValues((prev) => ({ ...(prev || {}), [s.key]: e.target.value }))}
+                    placeholder="(leave empty = no change)"
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-1 text-xs text-gray-600">
+              No secrets_hints provided by /provider_types. (Secrets can still be set if backend accepts secrets_json in payload.)
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}

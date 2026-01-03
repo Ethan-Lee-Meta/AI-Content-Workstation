@@ -158,18 +158,6 @@ bash scripts/gate_export_import.sh
 
     run_gate "e2e_happy_path" "scripts/gate_e2e_happy_path.sh" "$i" || exit $?
     gen_evidence_full "$i" || exit $?
-
-  # == BATCH-4 UI gates (Settings/Characters) ==
-  if [ -x scripts/gate_settings_ui.sh ]; then
-    run_gate "settings_ui" bash scripts/gate_settings_ui.sh
-  else
-    echo "[warn] missing: scripts/gate_settings_ui.sh"
-  fi
-  if [ -x scripts/gate_characters_ui.sh ]; then
-    run_gate "characters_ui" bash scripts/gate_characters_ui.sh
-  else
-    echo "[warn] missing: scripts/gate_characters_ui.sh"
-  fi
   else
     echo "[err] unknown mode=$MODE"
     usage

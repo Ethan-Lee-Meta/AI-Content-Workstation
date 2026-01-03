@@ -268,3 +268,40 @@ tmp/_out_gate_ac_004.txt:request_id=2b255ca8-4174-4ee7-b2f7-eb5020fcf5c9
 ### Rollback Notes
 - Code rollback anchor: `9dc078cb70dab8dc4d8836caba4bdffad94d07c0`
 - DB rollback: `alembic downgrade 0003_optional_hierarchy` (or restore a pre-upgrade DB backup)
+
+
+## BATCH-4A Settings UI (ProviderProfiles)
+
+### Manual Acceptance (UI)
+- Open: `/settings`
+- Create profile (with secret) → List shows **configured status** (no secret plaintext)
+- Set Default → Only one default visible
+- Edit profile: leave secret empty → configured should NOT flip to false
+- Delete profile → List refreshed; on failure show message + request_id
+
+### Automated Gate (Optional)
+- `bash scripts/gate_settings_ui.sh`
+  - Captured key request_id(s):
+    - create: `<request_id>`
+    - set_default: `<request_id>`
+    - delete: `<request_id>`
+
+
+## BATCH-4B Characters UI (RefSets/Refs)
+
+### Manual Acceptance (UI)
+- Open: `/characters`
+- New Character → Open detail
+- Create draft ref_set → Add ≥8 refs via Asset Picker
+- Create confirmed version (append-only) → Set Active (only confirmed)
+- Refresh page → active_ref_set_id stays consistent
+- Any error must show message + request_id
+
+### Automated Gate (Optional)
+- `bash scripts/gate_characters_ui.sh`
+  - Captured key request_id(s):
+    - create character: `<request_id>`
+    - create draft ref_set: `<request_id>`
+    - add refs: `<request_id>`
+    - create confirmed ref_set: `<request_id>`
+    - set active: `<request_id>`

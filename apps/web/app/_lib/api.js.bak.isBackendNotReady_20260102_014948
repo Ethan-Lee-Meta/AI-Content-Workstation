@@ -54,7 +54,6 @@ function normalizeError({ status, body, requestIdFallback }) {
 }
 
 export function isBackendNotReady(err) {
-  if (!err) return false;
   const s = err?.status;
   return s === 404 || s === 0 || s === undefined || s === null;
 }
