@@ -37,3 +37,14 @@ Thumbs.db
 # Local Python venv (do not commit)
 **/.venv/
 **/venv/
+
+# local patch backups
+*.bak_*
+*.bak.*
+
+# gate temp artifacts
+tmp/gate_*/
+tmp/gate_settings_ui.*/
+tmp/gate_characters_ui.*/
+tmp/provider_*.json
+tmp/pp_*.json
