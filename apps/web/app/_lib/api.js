@@ -85,25 +85,42 @@ export async function apiRequest(path, { method = "GET", query, body, headers } 
     const json = await readJsonSafe(resp);
 
     if (!resp.ok) {
-      throw normalizeError({
+      const env = normalizeError({
         status: resp.status,
         body: json,
         requestIdFallback: reqIdHeader || (json && json.request_id) || null,
       });
+      return {
+        ok: false,
+        status: resp.status,
+        request_id: env.request_id || reqIdHeader || (json && json.request_id) || null,
+        data: null,
+        error_envelope: env,
+      };
     }
-
-    return {
+return {
       ok: true,
       status: resp.status,
       request_id: (json && json.request_id) || reqIdHeader || null,
       data: json,
     };
   } catch (e) {
-    if (e && typeof e === "object" && ("error" in e || "message" in e || "request_id" in e)) {
-      throw e;
-    }
-    const msg = e?.name === "AbortError" ? "request timeout" : (e?.message || "network error");
-    throw normalizeError({ status: 0, body: { message: msg }, requestIdFallback: null });
+    const env =
+      (e && typeof e === "object" && ("error" in e || "message" in e || "request_id" in e))
+        ? e
+        : normalizeError({
+            status: 0,
+            body: { message: (e?.name === "AbortError" ? "request timeout" : (e?.message || "network error")) },
+            requestIdFallback: null,
+          });
+
+    return {
+      ok: false,
+      status: Number(env?.status || 0),
+      request_id: env?.request_id || null,
+      data: null,
+      error_envelope: env,
+    };
   } finally {
     clearTimeout(t);
   }
@@ -117,9 +134,14 @@ export async function apiRequest(path, { method = "GET", query, body, headers } 
 
 export async function apiFetch(path, opts) {
   const r = await apiRequest(path, opts);
-  return r.data;
-}
 
+  // Back-compat: if success payload is an object, spread it onto the top-level
+  // while preserving the canonical envelope fields (ok/data/request_id/error_envelope).
+  if (r && r.ok && r.data && typeof r.data === "object" && !Array.isArray(r.data)) {
+    return { ...r.data, ...r };
+  }
+  return r;
+}
 // Assets
 export async function listAssets(query) {
   return await apiFetch("/assets", { method: "GET", query: query || {} });

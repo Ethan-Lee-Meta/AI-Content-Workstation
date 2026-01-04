@@ -214,13 +214,18 @@ def traceability_for_asset(asset_id: str) -> Dict[str, Any]:
     finally:
         conn.close()
 
-def soft_delete_asset(asset_id: str, request_id: Optional[str] = None) -> dict:
+def soft_delete_asset(asset_id: str, request_id: Optional[str] = None, action: str = "delete") -> dict:
     """
-    Soft delete (idempotent):
-    - sets assets.deleted_at = <UTC ISO8601 'Z'>
-    - MUST NOT hard-delete the row
-    - repeat calls return success with already_deleted=true
+    Soft delete / restore (idempotent), without changing links:
+    - action=delete: set assets.deleted_at = <UTC ISO8601 'Z'> if NULL
+    - action=restore: set assets.deleted_at = NULL if not NULL
+    Notes:
+    - request_id is accepted for logging/threading but not required in success payload
     """
+    act = (action or "delete").strip().lower()
+    if act not in ("delete", "restore"):
+        raise HTTPException(status_code=400, detail=f"Invalid action: {action!r}. Expected 'delete' or 'restore'.")
+
     conn = _connect()
     try:
         if not _table_exists(conn, "assets"):
@@ -248,27 +253,41 @@ def soft_delete_asset(asset_id: str, request_id: Optional[str] = None) -> dict:
             raise HTTPException(status_code=404, detail=f"Asset not found: {asset_id}")
 
         existing = row["deleted_at"]
-        already = existing is not None
 
+        if act == "delete":
+            already = existing is not None
+            if not already:
+                ts = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+                conn.execute(
+                    f"UPDATE assets SET deleted_at = ? WHERE {id_col} = ?",
+                    (ts, asset_id),
+                )
+                conn.commit()
+                deleted_at = ts
+            else:
+                deleted_at = existing
+            return {
+                "asset_id": asset_id,
+                "deleted_at": deleted_at,
+                "already_deleted": already,
+                "status": "deleted",
+            }
+
+        # act == "restore"
+        already = existing is None
         if not already:
-            ts = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
             conn.execute(
-                f"UPDATE assets SET deleted_at = ? WHERE {id_col} = ?",
-                (ts, asset_id),
+                f"UPDATE assets SET deleted_at = NULL WHERE {id_col} = ?",
+                (asset_id,),
             )
             conn.commit()
-            deleted_at = ts
-        else:
-            deleted_at = existing
 
         return {
             "asset_id": asset_id,
-            "deleted_at": deleted_at,
-            "already_deleted": bool(already),
-            "status": "deleted",
+            "deleted_at": None,
+            # 兼容旧字段名：这里表示“已在目标态(未删除)”的幂等 no-op
+            "already_deleted": already,
+            "status": "restored",
         }
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        conn.close()

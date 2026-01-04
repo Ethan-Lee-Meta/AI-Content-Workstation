@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiFetch, listAssets, pickPreviewUrl, softDeleteAsset } from "../_lib/api";
+import { apiRequest, pickPreviewUrl } from "../_lib/api";
 
 function int(v, d) {
   const n = Number.parseInt(String(v ?? ""), 10);
@@ -34,7 +34,11 @@ export default function LibraryClient() {
 
   const [type, setType] = useState(sp.get("type") || "all");
   const [q, setQ] = useState(sp.get("q") || "");
-  const [includeDeleted, setIncludeDeleted] = useState(sp.get("include_deleted") === "true");
+
+  // View toggle: library|trash
+  const view = sp.get("view") || (sp.get("include_deleted") === "true" ? "trash" : "library");
+  const isTrash = view === "trash";
+  const includeDeleted = isTrash;
 
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
@@ -42,10 +46,14 @@ export default function LibraryClient() {
   const [lastRid, setLastRid] = useState("—");
   const [errEnv, setErrEnv] = useState(null);
 
-  // STEP-105: bulk selection + bulk soft delete
+  // Bulk
   const [selected, setSelected] = useState({});
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkReport, setBulkReport] = useState(null);
+
+  // Trash empty
+  const [emptyBusy, setEmptyBusy] = useState(false);
+  const [emptyReport, setEmptyReport] = useState(null);
 
   function pushParams(next) {
     const p = new URLSearchParams(sp.toString());
@@ -54,6 +62,11 @@ export default function LibraryClient() {
       else p.set(k, String(v));
     });
     router.push(`/library?${p.toString()}`);
+  }
+
+  function setView(nextView) {
+    const v = nextView === "trash" ? "trash" : "library";
+    pushParams({ view: v === "trash" ? "trash" : "", include_deleted: v === "trash" ? "true" : "", offset: 0 });
   }
 
   function idOf(a) {
@@ -68,21 +81,24 @@ export default function LibraryClient() {
     setLoading(true);
     setErrEnv(null);
 
-    const r = await listAssets({ limit, offset, include_deleted: includeDeleted });
-    if (!r.ok) {
-      setLastRid(r.request_id || r.error_envelope?.request_id || "—");
-      setErrEnv(r.error_envelope || null);
+    try {
+      const r = await apiRequest("/assets", {
+        method: "GET",
+        query: { limit, offset, include_deleted: includeDeleted ? "true" : "" },
+      });
+
+      const d = r.data || {};
+      setLastRid(r.request_id || "—");
+      setItems(Array.isArray(d.items) ? d.items : []);
+      setPage(d.page || { limit, offset, total: 0, has_more: false });
+    } catch (e) {
+      setLastRid(e?.request_id || "—");
+      setErrEnv(e || null);
       setItems([]);
       setPage({ limit, offset, total: 0, has_more: false });
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const d = r.data || {};
-    setLastRid(r.request_id || "—");
-    setItems(Array.isArray(d.items) ? d.items : []);
-    setPage(d.page || { limit, offset, total: 0, has_more: false });
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -91,15 +107,19 @@ export default function LibraryClient() {
   }, [limit, offset, includeDeleted]);
 
   const filtered = useMemo(() => {
-    const qq = q.trim().toLowerCase();
-    return (items || []).filter((a) => {
+    const qq = String(q || "").trim().toLowerCase();
+    return (Array.isArray(items) ? items : []).filter((a) => {
       const id = idOf(a).toLowerCase();
       const t = pickType(a);
+      const del = !!a?.deleted_at;
+
+      if (isTrash && !del) return false;
+      if (!isTrash && del) return false;
       if (type !== "all" && t !== type) return false;
       if (qq && !id.includes(qq)) return false;
       return true;
     });
-  }, [items, type, q]);
+  }, [items, isTrash, type, q]);
 
   const selectedIds = useMemo(() => {
     return Object.keys(selected || {}).filter((k) => selected[k]);
@@ -126,6 +146,37 @@ export default function LibraryClient() {
     setBulkReport(null);
   }
 
+  async function deleteOne(assetId) {
+    setErrEnv(null);
+    try {
+      const r = await apiRequest(`/assets/${encodeURIComponent(assetId)}`, { method: "DELETE" });
+      setLastRid(r.request_id || "—");
+      load();
+      return true;
+    } catch (e) {
+      setLastRid(e?.request_id || "—");
+      setErrEnv(e || null);
+      return false;
+    }
+  }
+
+  async function restoreOne(assetId) {
+    setErrEnv(null);
+    try {
+      const r = await apiRequest(`/assets/${encodeURIComponent(assetId)}`, {
+        method: "DELETE",
+        query: { action: "restore" },
+      });
+      setLastRid(r.request_id || "—");
+      load();
+      return true;
+    } catch (e) {
+      setLastRid(e?.request_id || "—");
+      setErrEnv(e || null);
+      return false;
+    }
+  }
+
   async function bulkSoftDelete() {
     const ids = selectedIds.slice(0);
     if (ids.length === 0) return;
@@ -141,15 +192,15 @@ export default function LibraryClient() {
     let firstFailEnv = null;
 
     for (const id of ids) {
-      const r = await softDeleteAsset(id);
-      last = r.request_id || r.error_envelope?.request_id || last;
-
-      if (r.ok) {
+      try {
+        const r = await apiRequest(`/assets/${encodeURIComponent(id)}`, { method: "DELETE" });
+        last = r.request_id || last;
         ok += 1;
         okSet.add(id);
-      } else {
+      } catch (e) {
+        last = e?.request_id || last;
         fail += 1;
-        if (!firstFailEnv) firstFailEnv = r.error_envelope || null;
+        if (!firstFailEnv) firstFailEnv = e || null;
       }
     }
 
@@ -181,6 +232,66 @@ export default function LibraryClient() {
     if (fail === 0) load();
   }
 
+  async function bulkRestore() {
+    const ids = selectedIds.slice(0);
+    if (ids.length === 0) return;
+
+    setBulkBusy(true);
+    setBulkReport(null);
+    setErrEnv(null);
+
+    let ok = 0;
+    let fail = 0;
+    let last = "—";
+    let firstFailEnv = null;
+
+    for (const id of ids) {
+      try {
+        const r = await apiRequest(`/assets/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          query: { action: "restore" },
+        });
+        last = r.request_id || last;
+        ok += 1;
+      } catch (e) {
+        last = e?.request_id || last;
+        fail += 1;
+        if (!firstFailEnv) firstFailEnv = e || null;
+      }
+    }
+
+    setLastRid(last);
+    setBulkReport({ requested: ids.length, ok, fail, last_request_id: last });
+    if (firstFailEnv) setErrEnv(firstFailEnv);
+
+    setBulkBusy(false);
+    setSelected({});
+    load();
+  }
+
+  async function emptyTrash() {
+    if (!window.confirm("Empty Trash? This will permanently delete all soft-deleted assets (DB rows).")) return;
+
+    setEmptyBusy(true);
+    setEmptyReport(null);
+    setErrEnv(null);
+
+    try {
+      const r = await apiRequest("/trash/empty", { method: "POST", body: {} });
+      const d = r.data || {};
+      const deletedCount = d.deleted_count ?? d.purged_assets ?? 0;
+      setLastRid(r.request_id || d.request_id || "—");
+      setEmptyReport({ deleted_count: deletedCount, request_id: r.request_id || d.request_id || "—" });
+      setSelected({});
+      load();
+    } catch (e) {
+      setLastRid(e?.request_id || "—");
+      setErrEnv(e || null);
+    } finally {
+      setEmptyBusy(false);
+    }
+  }
+
   return (
     <div className="grid">
       <section className="card" style={{ gridColumn: "span 12" }}>
@@ -198,6 +309,12 @@ export default function LibraryClient() {
       <section className="card" style={{ gridColumn: "span 12" }} data-testid="filters-bar">
         <h2 className="cardTitle">FiltersBar</h2>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="badge" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+            view
+            <button className="btn" onClick={() => setView("library")} disabled={!isTrash}>Library</button>
+            <button className="btn" onClick={() => setView("trash")} disabled={isTrash}>Trash</button>
+          </span>
+
           <label className="badge" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
             type
             <select
@@ -209,15 +326,6 @@ export default function LibraryClient() {
               <option value="image">image</option>
               <option value="video">video</option>
             </select>
-          </label>
-
-          <label className="badge" style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-            include_deleted
-            <input
-              type="checkbox"
-              checked={includeDeleted}
-              onChange={(e) => setIncludeDeleted(e.target.checked)}
-            />
           </label>
 
           <input
@@ -236,7 +344,7 @@ export default function LibraryClient() {
 
           <button
             className="btn"
-            onClick={() => pushParams({ type: type === "all" ? "" : type, q: q.trim() ? q.trim() : "", include_deleted: includeDeleted ? "true" : "" })}
+            onClick={() => pushParams({ type: type === "all" ? "" : type, q: q.trim() ? q.trim() : "", offset: 0 })}
           >
             Apply
           </button>
@@ -274,12 +382,23 @@ export default function LibraryClient() {
                       />
                       <div style={{ minWidth: 0 }}>
                         <div className="mono" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{id}</div>
-                        <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
+                        <div style={{ marginTop: 6, display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <span className="badge mono">{t || "unknown"}</span>
+                          {isTrash ? (
+                            <span className="badge mono">deleted_at: {String(a?.deleted_at || "—")}</span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
-                    <Link className="btn" href={`/assets/${encodeURIComponent(id)}`} prefetch={false}>Open</Link>
+
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Link className="btn" href={`/assets/${encodeURIComponent(id)}`} prefetch={false}>Open</Link>
+                      {isTrash ? (
+                        <button className="btn" onClick={() => restoreOne(id)} disabled={bulkBusy}>Restore</button>
+                      ) : (
+                        <button className="btn" onClick={() => deleteOne(id)} disabled={bulkBusy}>Delete</button>
+                      )}
+                    </div>
                   </div>
 
                   <div style={{ marginTop: 10 }}>
@@ -329,19 +448,36 @@ export default function LibraryClient() {
             Clear selection
           </button>
 
-          <button className="btn" data-testid="bulk-soft-delete" onClick={bulkSoftDelete} disabled={bulkBusy || selectedCount === 0}>
-            {bulkBusy ? "Deleting..." : "Soft delete selected"}
-          </button>
+          {!isTrash ? (
+            <button className="btn" data-testid="bulk-soft-delete" onClick={bulkSoftDelete} disabled={bulkBusy || selectedCount === 0}>
+              {bulkBusy ? "Deleting..." : "Soft delete selected"}
+            </button>
+          ) : (
+            <>
+              <button className="btn" data-testid="bulk-restore" onClick={bulkRestore} disabled={bulkBusy || selectedCount === 0}>
+                {bulkBusy ? "Restoring..." : "Restore selected"}
+              </button>
+              <button className="btn" data-testid="trash-empty" onClick={emptyTrash} disabled={bulkBusy || emptyBusy}>
+                {emptyBusy ? "Emptying..." : "Empty Trash"}
+              </button>
+            </>
+          )}
 
           {bulkReport ? (
             <span className="badge" data-testid="bulk-report">
               requested: <span className="mono">{String(bulkReport.requested)}</span> • ok: <span className="mono">{String(bulkReport.ok)}</span> • fail: <span className="mono">{String(bulkReport.fail)}</span> • last_request_id: <span className="mono">{String(bulkReport.last_request_id || "—")}</span>
             </span>
           ) : null}
+
+          {emptyReport ? (
+            <span className="badge" data-testid="trash-empty-report">
+              deleted_count: <span className="mono">{String(emptyReport.deleted_count ?? 0)}</span> • request_id: <span className="mono">{String(emptyReport.request_id || "—")}</span>
+            </span>
+          ) : null}
         </div>
 
         <p className="cardHint" style={{ marginTop: 10 }}>
-          P1: bulk select + bulk soft delete. Failure must show error envelope + request_id (see ErrorPanel).
+          P1: bulk select + bulk soft delete. Trash view: bulk restore + empty trash. Failures show error envelope + request_id.
         </p>
       </section>
     </div>

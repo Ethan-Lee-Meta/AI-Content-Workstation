@@ -48,41 +48,31 @@ def _safe_under_root(root: Path, candidate: str) -> Optional[Path]:
         return None
 
 def purge_deleted_assets(storage_root: str, request_id: Optional[str] = None) -> Dict:
+    """
+    Physically delete DB rows for assets where deleted_at IS NOT NULL.
+    IMPORTANT (Batch-5): do NOT delete storage blobs/files in this batch.
+    Links are not modified (links remain SSOT for audit/trace).
+    """
     db_url = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
     db_path = _resolve_sqlite_path(db_url)
-    storage_root_path = Path(os.getenv("STORAGE_ROOT", storage_root)).resolve()
 
     if not Path(db_path).exists():
         raise RuntimeError(f"db not found: {db_path}")
 
-    purged_files = 0
-    purged_assets = 0
-
+    purged_files = 0  # locked: do not delete files in this batch
     conn = sqlite3.connect(db_path)
     try:
         conn.row_factory = sqlite3.Row
-        cols = [r["name"] for r in conn.execute("PRAGMA table_info(assets)").fetchall()]
-        path_col = _pick_path_column(cols)
 
-        rows = conn.execute("SELECT * FROM assets WHERE deleted_at IS NOT NULL").fetchall()
+        # count first (so response can report deleted_count)
+        purged_assets = conn.execute(
+            "SELECT COUNT(*) FROM assets WHERE deleted_at IS NOT NULL"
+        ).fetchone()[0]
 
-        # try purge files first (best-effort)
-        if path_col:
-            for r in rows:
-                v = r[path_col]
-                if not v:
-                    continue
-                safe_p = _safe_under_root(storage_root_path, str(v))
-                if safe_p and safe_p.exists() and safe_p.is_file():
-                    try:
-                        safe_p.unlink()
-                        purged_files += 1
-                    except Exception:
-                        pass
-
-        purged_assets = conn.execute("SELECT COUNT(*) FROM assets WHERE deleted_at IS NOT NULL").fetchone()[0]
         conn.execute("DELETE FROM assets WHERE deleted_at IS NOT NULL")
         conn.commit()
+
+        deleted_count = int(purged_assets)
 
         audit = {
             "ts": datetime.utcnow().isoformat() + "Z",
@@ -90,16 +80,17 @@ def purge_deleted_assets(storage_root: str, request_id: Optional[str] = None) ->
             "event": "trash.empty",
             "action": "trash_empty",
             "request_id": request_id,
-            "purged_assets": purged_assets,
-            "purged_count": int(purged_assets),
-            "purged_files": purged_files,
+            "deleted_count": deleted_count,
+            "purged_assets": deleted_count,  # backward compatible key
+            "purged_files": int(purged_files),
         }
-        # stdout audit line (capturable in uvicorn log redirection)
         print(json.dumps(audit, ensure_ascii=False), flush=True)
 
         return {
             "status": "ok",
-            "purged_assets": int(purged_assets),
+            "deleted_count": deleted_count,  # Batch-5 contract
+            "request_id": request_id,        # Batch-5 contract
+            "purged_assets": deleted_count,  # backward compatible
             "purged_files": int(purged_files),
             "audit_event": audit,
         }

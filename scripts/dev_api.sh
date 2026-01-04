@@ -10,21 +10,20 @@ elif [[ -f "apps/api/.venv/Scripts/activate" ]]; then
   source "apps/api/.venv/Scripts/activate"
 fi
 
-# Windows Python uses ";" as path separator; safest is to set PYTHONPATH explicitly to one path.
 export PYTHONPATH="$ROOT/apps/api"
+export PROVIDER_ENABLED=1
 
+PY="${PY:-$ROOT/apps/api/.venv/Scripts/python.exe}"
+
+echo "[info] PY=$PY"
 echo "[info] PYTHONPATH=$PYTHONPATH"
-python - <<'PY'
+"$PY" - <<'PY'
 import sys, os
 print("[info] sys.executable =", sys.executable)
 print("[info] cwd =", os.getcwd())
 print("[info] sys.path[0:3] =", sys.path[0:3])
-try:
-    import app.main
-    print("[ok] import app.main succeeded")
-except Exception as e:
-    print("[err] import app.main failed:", repr(e))
-    raise
+import app.main
+print("[ok] import app.main succeeded")
 PY
 
-exec python -m uvicorn app.main:app --host 0.0.0.0 --port 7000 --reload
+exec "$PY" -m uvicorn app.main:app --host 0.0.0.0 --port 7000 --reload

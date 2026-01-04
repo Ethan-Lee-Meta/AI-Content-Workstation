@@ -197,7 +197,7 @@ def get_asset_detail(asset_id: str) -> AssetDetailOut:
 
 
 @router.delete("/assets/{asset_id}", response_model=AssetDeleteResponse)
-def delete_asset(asset_id: str, request: Request) -> AssetDeleteResponse:
+def delete_asset(asset_id: str, request: Request, action: str = Query("delete", description="Action: delete|restore")) -> AssetDeleteResponse:
     """Soft delete (idempotent)."""
     rid = getattr(getattr(request, "state", None), "request_id", None)
-    return soft_delete_asset(asset_id=asset_id, request_id=rid)
+    return soft_delete_asset(asset_id=asset_id, request_id=rid, action=action)

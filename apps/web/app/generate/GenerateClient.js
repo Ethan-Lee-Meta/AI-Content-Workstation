@@ -142,15 +142,28 @@ export default function GenerateClient({ initialType }) {
     const base = schemaToExample(openapi, schema);
     const o = (base && typeof base === "object" && !Array.isArray(base)) ? { ...base } : {};
 
-    const typeKeys = ["generation_type", "input_type", "type", "kind"];
-    const promptKeys = ["prompt", "prompt_text", "text", "instruction"];
+    const typeKeys = ["run_type", "generation_type", "input_type", "type", "kind"];
 
     const hasAny = (keys) => keys.find(k => Object.prototype.hasOwnProperty.call(o, k));
-    const typeKey = hasAny(typeKeys) || "input_type";
-    const promptKey = hasAny(promptKeys) || "prompt";
-
+    const typeKey = hasAny(typeKeys) || "run_type";
     o[typeKey] = inputType;
-    o[promptKey] = promptText;
+
+    // Contract-aligned prompt placement:
+    // - Prefer RunCreateIn.prompt_pack.{raw_input,final_prompt,assembly_used} when present
+    // - Fallback to a top-level prompt-ish field for older schemas
+    if (Object.prototype.hasOwnProperty.call(o, "prompt_pack") && o.prompt_pack && typeof o.prompt_pack === "object" && !Array.isArray(o.prompt_pack)) {
+      o.prompt_pack = {
+        ...o.prompt_pack,
+        raw_input: promptText,
+        final_prompt: promptText,
+        assembly_used: false,
+        ...(Object.prototype.hasOwnProperty.call(o.prompt_pack, "assembly_prompt") && !o.prompt_pack.assembly_prompt ? { assembly_prompt: null } : {}),
+      };
+    } else {
+      const promptKeys = ["prompt", "prompt_text", "text", "instruction"];
+      const promptKey = hasAny(promptKeys) || "prompt";
+      o[promptKey] = promptText;
+    }
 
     // image-based types: best-effort populate a source asset id field if one exists
     if (inputType === "i2i" || inputType === "i2v") {
@@ -175,7 +188,7 @@ export default function GenerateClient({ initialType }) {
       if (!res.ok || !json) {
         setSchemaHint("openapi.json not available via /api_proxy (check API running on 7000).");
         setSchemaLoaded(true);
-        setPayloadText(JSON.stringify({ input_type: inputType, prompt: promptText }, null, 2));
+        setPayloadText(JSON.stringify({ run_type: inputType, prompt_pack: { raw_input: promptText, final_prompt: promptText, assembly_used: false } }, null, 2));
         return;
       }
 
@@ -183,7 +196,7 @@ export default function GenerateClient({ initialType }) {
       if (!schema) {
         setSchemaHint("No requestBody schema found for POST /runs in OpenAPI; using minimal payload template.");
         setSchemaLoaded(true);
-        setPayloadText(JSON.stringify({ input_type: inputType, prompt: promptText }, null, 2));
+        setPayloadText(JSON.stringify({ run_type: inputType, prompt_pack: { raw_input: promptText, final_prompt: promptText, assembly_used: false } }, null, 2));
         return;
       }
 
@@ -193,7 +206,7 @@ export default function GenerateClient({ initialType }) {
     })().catch((e) => {
       setSchemaHint(`OpenAPI load failed: ${String(e)}`);
       setSchemaLoaded(true);
-      setPayloadText(JSON.stringify({ input_type: inputType, prompt: promptText }, null, 2));
+      setPayloadText(JSON.stringify({ run_type: inputType, prompt_pack: { raw_input: promptText, final_prompt: promptText, assembly_used: false } }, null, 2));
     });
 
     return () => { mounted = false; };
@@ -215,12 +228,24 @@ export default function GenerateClient({ initialType }) {
       return false;
     };
 
-    const typeKeys = ["generation_type", "input_type", "type", "kind"];
-    const promptKeys = ["prompt", "prompt_text", "text", "instruction"];
+    const typeKeys = ["run_type", "generation_type", "input_type", "type", "kind"];
 
-    if (!setFirst(typeKeys, inputType)) obj.input_type = inputType;
-    if (!setFirst(promptKeys, promptText)) obj.prompt = promptText;
+    // Keep run_type aligned with selector
+    if (!setFirst(typeKeys, inputType)) obj.run_type = inputType;
 
+    // Keep prompt_pack aligned with editor (contract first)
+    if (Object.prototype.hasOwnProperty.call(obj, "prompt_pack") && obj.prompt_pack && typeof obj.prompt_pack === "object" && !Array.isArray(obj.prompt_pack)) {
+      obj.prompt_pack = {
+        ...obj.prompt_pack,
+        raw_input: promptText,
+        final_prompt: promptText,
+        assembly_used: false,
+        ...(Object.prototype.hasOwnProperty.call(obj.prompt_pack, "assembly_prompt") && !obj.prompt_pack.assembly_prompt ? { assembly_prompt: null } : {}),
+      };
+    } else {
+      const promptKeys = ["prompt", "prompt_text", "text", "instruction"];
+      if (!setFirst(promptKeys, promptText)) obj.prompt = promptText;
+    }
     if (inputType === "i2i" || inputType === "i2v") {
       if ("source_asset_id" in obj) obj.source_asset_id = sourceAssetId || obj.source_asset_id || "";
       if ("asset_id" in obj && !obj.asset_id) obj.asset_id = sourceAssetId || "";
